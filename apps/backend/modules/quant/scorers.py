@@ -18,7 +18,7 @@ RIDGE_GRID = (0.1, 1.0, 10.0, 100.0)
 
 def baseline_scores(name: str, rows: list[dict], seed: int = 0) -> list[float]:
     if name == "random":  # control: debe dar IC ≈ 0; determinista por (semilla, fecha, instrumento)
-        return [random.Random(f"{seed}|{r['date']}|{r['inst']}").random() for r in rows]
+        return [random.Random(f"{seed}|{r['date']}|{r['inst']}").random() for r in rows]  # nosec B311 - control estadístico, no criptografía
     if name not in BASELINES:
         raise KeyError(name)
     f = BASELINES[name][1]

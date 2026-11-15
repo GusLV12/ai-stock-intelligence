@@ -58,6 +58,20 @@ def _by_date(rows, scores):
     return out
 
 
+def panel_hash(series: dict, config: dict) -> str:
+    """Huella del conjunto de datos que usaría el experimento (sirve para contar intentos previos sobre los mismos datos)."""
+    try:
+        panel = build_panel(
+            series,
+            int(config.get("horizon", 20)),
+            int(config.get("delay", 1)),
+            int(config.get("min_names", 5)),
+        )
+    except DatasetError as exc:
+        raise ExperimentError(str(exc)) from exc
+    return dataset_hash(panel)
+
+
 def run_experiment(
     series: dict, config: dict, trials: int = 1, criteria: promotion.Criteria | None = None
 ) -> dict:

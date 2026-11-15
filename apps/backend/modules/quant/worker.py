@@ -3,7 +3,7 @@ disponible; el resto del laboratorio sigue funcionando."""
 
 import json
 import os
-import subprocess
+import subprocess  # nosec B404 - se lanza solo el intérprete del entorno aislado, con rutas propias
 import tempfile
 from pathlib import Path
 
@@ -61,7 +61,7 @@ def lightgbm_scores(
         src, dst = Path(tmp) / "in.json", Path(tmp) / "out.json"
         src.write_text(json.dumps(job), encoding="utf-8")
         try:
-            proc = subprocess.run(
+            proc = subprocess.run(  # nosec B603 - sin shell; ejecutable y archivos son rutas controladas por nosotros
                 [str(py), "-I", str(WORKER), str(src), str(dst)],
                 capture_output=True,
                 text=True,
