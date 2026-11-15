@@ -4,6 +4,7 @@ import os
 import secrets
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -111,7 +112,13 @@ def test_ready_responde_503_con_migraciones_pendientes(monkeypatch):
 # ------------------------------------------------------------------------------- configuración de producción real
 def _manage(*args, **env):
     base = {k: v for k, v in os.environ.items() if not k.startswith(("DJANGO_", "DB_"))}
-    base.update({"SQLITE_PATH": str(BACKEND / "prod_check.sqlite3"), "PYTHONIOENCODING": "utf-8", **env})
+    base.update(
+        {
+            "SQLITE_PATH": str(Path(tempfile.gettempdir()) / "asi_prod_check.sqlite3"),
+            "PYTHONIOENCODING": "utf-8",
+            **env,
+        }
+    )
     return subprocess.run(
         [sys.executable, "manage.py", *args],
         cwd=BACKEND,
