@@ -112,7 +112,7 @@ export default function Screener() {
 
       <section className="card stack" aria-label="Datos financieros">
         <h2>Datos financieros</h2>
-        <p className="muted">El screener usa estados financieros anuales que cargas aquí (CSV). Un dato que falte queda como «sin dato», nunca como cero.</p>
+        <p className="muted">El screener usa estados financieros anuales: súbelos aquí (CSV) o descárgalos de la SEC con el comando ingest_sec_financials (ver docs/runbooks/sec-edgar.md). Cada fila indica su fuente. Un dato que falte queda como «sin dato», nunca como cero.</p>
         <div className="row-actions">
           <label className="btn ghost" style={{ cursor: "pointer" }}>
             Subir CSV
@@ -200,7 +200,7 @@ export default function Screener() {
                       <td>
                         {r.failed_filters.length > 0 && <div>Falla: {r.failed_filters.map((f) => FILTER_LABELS[f] ?? f).join(", ")}</div>}
                         {r.missing_data_filters.length > 0 && <div className="muted">Sin dato: {r.missing_data_filters.map((f) => FILTER_LABELS[f] ?? f).join(", ")}</div>}
-                        {r.passed && <span className="muted">FY{r.data_refs.fiscal_year} v{r.data_refs.version}</span>}
+                        {r.passed && <span className="muted">FY{r.data_refs.fiscal_year} v{r.data_refs.version} · {r.data_refs.source === "SEC_EDGAR" ? "SEC" : r.data_refs.source}</span>}
                       </td>
                     </tr>
                   ))}
