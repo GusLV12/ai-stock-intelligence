@@ -25,15 +25,28 @@ def refresh_history(provider, range_: str = "1y") -> dict:
                 break
             continue
         strikes = 0
-        existing = set(DailyClose.objects.filter(instrument=instrument, provider=provider.name).values_list("date", flat=True))
-        new = [
-            DailyClose(instrument=instrument, date=day, close=close, currency=data["currency"], provider=provider.name)
-            for day, close in data["bars"]
-            if day not in existing
-        ]
+        existing = {r.date: r for r in DailyClose.objects.filter(instrument=instrument, provider=provider.name)}
+        full = {b["date"]: b for b in data.get("ohlcv", [])}
+        new, fill = [], []
+        for day, close in data["bars"]:
+            bar = full.get(day, {})
+            row = existing.get(day)
+            if row is None:
+                new.append(
+                    DailyClose(
+                        instrument=instrument, date=day, close=close, currency=data["currency"], provider=provider.name,
+                        open=bar.get("open"), high=bar.get("high"), low=bar.get("low"), volume=bar.get("volume"),
+                    )
+                )
+            elif row.high is None and bar.get("high") is not None:
+                # Cierre ya guardado sin vela: se completa open/high/low/volume sin tocar el cierre.
+                row.open, row.high, row.low, row.volume = bar["open"], bar["high"], bar["low"], bar["volume"]
+                fill.append(row)
         DailyClose.objects.bulk_create(new)
-        if new:
-            result["saved"][ticker] = len(new)
+        if fill:
+            DailyClose.objects.bulk_update(fill, ["open", "high", "low", "volume"])
+        if new or fill:
+            result["saved"][ticker] = len(new) + len(fill)
         else:
             result["unchanged"].append(ticker)
     return result

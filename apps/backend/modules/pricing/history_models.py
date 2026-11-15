@@ -12,6 +12,11 @@ class DailyClose(models.Model):
     instrument = models.ForeignKey(Instrument, on_delete=models.PROTECT, related_name="daily_closes")
     date = models.DateField()
     close = models.DecimalField(max_digits=38, decimal_places=10)
+    # Vela completa (opcional): si el proveedor no la dio o era incoherente, solo hay cierre.
+    open = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    high = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    low = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    volume = models.BigIntegerField(null=True, blank=True)
     currency = models.CharField(max_length=3)
     provider = models.CharField(max_length=40)
     created_at = models.DateTimeField(auto_now_add=True)

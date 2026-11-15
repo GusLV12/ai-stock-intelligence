@@ -249,15 +249,47 @@ class YahooProvider:
             try:
                 res = chart["result"][0]
                 stamps = res["timestamp"]
-                closes = res["indicators"]["quote"][0]["close"]
+                quote = res["indicators"]["quote"][0]
+                closes = quote["close"]
                 meta = res["meta"]
             except (KeyError, IndexError, TypeError):
                 last = ProviderError("Respuesta de Yahoo con formato inesperado.", transient=True)
                 continue
-            return self._parse_bars(symbol, stamps, closes, meta)
+            return self._parse_bars(symbol, stamps, closes, meta, quote)
         raise last or ProviderError("Yahoo no disponible.", transient=True)
 
-    def _parse_bars(self, symbol, stamps, closes, meta) -> dict:
+    @staticmethod
+    def _price(value):
+        """Decimal de 4 decimales (sin ruido de float) o None si falta o no es positivo."""
+        if value is None:
+            return None
+        try:
+            d = _decimal(value, "Precio").quantize(Decimal("0.0001"))
+        except (TypeError, ValueError, ProviderError):
+            return None
+        return d if d > 0 else None
+
+    def _ohlcv(self, quote: dict | None, i: int, close: Decimal) -> dict:
+        """Velas completas solo si son coherentes (low <= open,close <= high); si no, solo el cierre."""
+        empty = {"open": None, "high": None, "low": None, "volume": None}
+        if not isinstance(quote, dict):
+            return empty
+
+        def at(key):
+            seq = quote.get(key)
+            return seq[i] if isinstance(seq, list) and i < len(seq) else None
+
+        o, h, low = self._price(at("open")), self._price(at("high")), self._price(at("low"))
+        if None in (o, h, low) or not (low <= min(o, close) and max(o, close) <= h):
+            return empty
+        vol = at("volume")
+        try:
+            volume = int(vol) if vol is not None and int(vol) >= 0 else None
+        except (TypeError, ValueError):
+            volume = None
+        return {"open": o, "high": h, "low": low, "volume": volume}
+
+    def _parse_bars(self, symbol, stamps, closes, meta, quote=None) -> dict:
         currency = str(meta.get("currency") or "").upper()
         if len(currency) != 3:
             raise ProviderError(f"Falta la moneda de {symbol} en Yahoo.")
@@ -266,7 +298,8 @@ class YahooProvider:
         if not isinstance(stamps, list) or not isinstance(closes, list):
             raise ProviderError("Respuesta de Yahoo con formato inesperado.", transient=True)
         by_date = {}
-        for ts, close in zip(stamps, closes, strict=False):
+        full = {}
+        for i, (ts, close) in enumerate(zip(stamps, closes, strict=False)):
             if close is None:
                 continue
             try:
@@ -277,6 +310,7 @@ class YahooProvider:
             if value <= 0 or day >= today_local:  # sin cierres inválidos ni la barra de hoy
                 continue
             by_date[day] = value  # una barra por día; la posterior gana
+            full[day] = {"date": day, "close": value, **self._ohlcv(quote, i, value)}
         if not by_date:
             raise ProviderError(f"Yahoo no devolvió cierres válidos para {symbol}.")
-        return {"currency": currency, "bars": sorted(by_date.items())}
+        return {"currency": currency, "bars": sorted(by_date.items()), "ohlcv": [full[d] for d in sorted(full)]}
