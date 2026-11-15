@@ -98,12 +98,17 @@ descargar modelos). Sin ese permiso explícito el cliente se niega.
 
 ## Lo que NO está verificado (decláralo antes de confiar)
 
-* **Las imágenes Docker no se construyeron aquí** (Docker Desktop apagado en esta PC): el `compose` se validó con
-  `docker compose config` y el frontend con `next build` en modo standalone, pero no hay una corrida real de contenedores.
-  Primer paso al desplegar: construir, levantar y recorrer `ready`, login, una importación de prueba y el respaldo.
-* **PostgreSQL**: el camino de respaldo/restauración está probado con dobles de `pg_dump`/`pg_restore`, no contra un servidor real.
-  La prueba de restauración profunda de arriba es obligatoria en el primer despliegue.
-* **HTTPS/Let's Encrypt y el proveedor de identidad** no se probaron contra servicios reales (el protocolo MCP/OAuth sí se probó
+* **Verificado el 2026-11-15 en una PC local con Docker real** (PostgreSQL 17, dominio `localhost`, secretos desechables): las
+  imágenes `asi-backend` y `asi-web` se construyen; las 41 migraciones aplican en PostgreSQL; backend sano (`ready`); el servicio
+  de respaldos genera `.asibak` verificados; `restore_db --pg-database` restauró a una base nueva con las **39 tablas con las mismas
+  filas** y el mismo hash de las transacciones; Caddy sirve HTTPS (certificado interno), redirige HTTP→HTTPS, aplica las cabeceras
+  y `/admin` responde 404. La corrida encontró y corrigió tres fallos reales (variables `mcp` exigidas sin su perfil, `pywin32` en
+  requirements para Linux, y `/backups` sin permisos para el usuario sin privilegios).
+* **No probado todavía**: el perfil `mcp` y el `inference` (Ollama), la importación de datos reales dentro del contenedor, ni la
+  carga con 3.7 GB de RAM para Docker en esta PC (justa). Primer paso al desplegar de verdad: repetir el recorrido con tu dominio.
+* **PostgreSQL**: ya se probó contra un servidor real, pero con pocos datos (217 filas). Repite la restauración profunda con tus datos
+  reales antes de confiar en ella.
+* **Let's Encrypt (emisión pública) y el proveedor de identidad** no se probaron contra servicios reales (el protocolo MCP/OAuth sí se probó
   contra la aplicación ASGI real con tokens firmados de prueba).
 * La CSP permite scripts en línea (necesario para hidratar Next.js); endurecerla con nonces es un paso posterior.
 * `uvicorn` confía en las cabeceras `X-Forwarded-*` de cualquier origen (`--forwarded-allow-ips "*"`) porque solo Caddy alcanza el

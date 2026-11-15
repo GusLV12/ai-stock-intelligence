@@ -71,7 +71,7 @@ Etapas 0–12 con trabajo entregado. Pendiente:
 - Lectores PDF de GBM/Mercado Pago (requieren documentos reales).
 - Ingesta SEC EDGAR (requiere contacto para User-Agent; no usar el email del usuario sin su aprobación).
 - Pruebas en vivo con Twelve Data/Banxico (claves del usuario).
-- Contenedores nunca construidos/ejecutados (Docker apagado); respaldo PostgreSQL solo probado con dobles; sin IdP ni HTTPS reales.
+- Contenedores y respaldo/restauración en PostgreSQL 17 verificados con Docker real (ver runbook despliegue-remoto); faltan perfiles `mcp`/`inference`, dominio real (Let's Encrypt) e IdP real.
 - RD-Agent(Q) no adoptado (qwen3:1.7b NO_APTO; reintentar con 4b/8b en la ROG de 24 GB).
 - Sin datos licenciados: look-through de ETFs, consenso de analistas, sesgo de supervivencia.
 - Modelo de un solo usuario (sin roles ni 2FA).
