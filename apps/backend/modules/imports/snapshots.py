@@ -99,9 +99,11 @@ def reconcile(snapshot: PositionSnapshot) -> list[dict]:
                 same_qty = abs(row["quantity_diff"]) <= QTY_TOLERANCE
                 row["status"] = "ok" if same_qty and cost_ok else "diferencia"
         out.append(row)
-    for pair in TaxLot.objects.filter(account=account, quantity_remaining__gt=0).values_list(
-        "instrument_id", flat=True
-    ).distinct():
+    for pair in (
+        TaxLot.objects.filter(account=account, quantity_remaining__gt=0)
+        .values_list("instrument_id", flat=True)
+        .distinct()
+    ):
         if pair in seen:
             continue
         ins = Instrument.objects.get(pk=pair)

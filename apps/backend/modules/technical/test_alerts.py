@@ -55,14 +55,27 @@ def test_precio_bajo_y_dato_viejo_se_marca_como_stale(ctx):
 def test_alerta_de_senal_usa_las_velas_guardadas_y_su_regla(ctx):
     c, _, ins = ctx
     today = datetime.now(UTC).date()
-    rows = [DailyClose(instrument=ins, date=today - timedelta(days=30 - i), close=D(100), currency="USD", provider="YAHOO_UNOFFICIAL") for i in range(29)]
-    rows.append(DailyClose(instrument=ins, date=today, close=D(108), currency="USD", provider="YAHOO_UNOFFICIAL"))
+    rows = [
+        DailyClose(
+            instrument=ins,
+            date=today - timedelta(days=30 - i),
+            close=D(100),
+            currency="USD",
+            provider="YAHOO_UNOFFICIAL",
+        )
+        for i in range(29)
+    ]
+    rows.append(
+        DailyClose(instrument=ins, date=today, close=D(108), currency="USD", provider="YAHOO_UNOFFICIAL")
+    )
     DailyClose.objects.bulk_create(rows)
     post(c, {"ticker": "AAA", "kind": "SIGNAL", "signal_id": "breakout"})
     post(c, {"ticker": "AAA", "kind": "SIGNAL", "signal_id": "oversold"})
     fired = c.post("/api/v1/technical/alerts/evaluate").json()["triggered"]
     assert [f["signal_id"] for f in fired] == ["breakout"]
-    assert "máximo de los 20" in fired[0]["triggered_detail"]["rule"] and fired[0]["triggered_detail"]["as_of"] == str(today)
+    assert "máximo de los 20" in fired[0]["triggered_detail"]["rule"] and fired[0]["triggered_detail"][
+        "as_of"
+    ] == str(today)
     pendiente = [a for a in c.get("/api/v1/technical/alerts").json() if a["active"]]
     assert [a["signal_id"] for a in pendiente] == ["oversold"]
 
@@ -85,10 +98,17 @@ def test_cancelar_una_alerta(ctx):
 
 @pytest.mark.parametrize(
     "body",
-    [{}, {"ticker": "ZZZ", "kind": "PRICE_ABOVE", "threshold": 1}, {"ticker": "AAA", "kind": "otro"},
-     {"ticker": "AAA", "kind": "PRICE_ABOVE"}, {"ticker": "AAA", "kind": "PRICE_ABOVE", "threshold": "abc"},
-     {"ticker": "AAA", "kind": "PRICE_ABOVE", "threshold": 0}, {"ticker": "AAA", "kind": "PRICE_BELOW", "threshold": "NaN"},
-     {"ticker": "AAA", "kind": "SIGNAL"}, {"ticker": "AAA", "kind": "SIGNAL", "signal_id": "inventada"}],
+    [
+        {},
+        {"ticker": "ZZZ", "kind": "PRICE_ABOVE", "threshold": 1},
+        {"ticker": "AAA", "kind": "otro"},
+        {"ticker": "AAA", "kind": "PRICE_ABOVE"},
+        {"ticker": "AAA", "kind": "PRICE_ABOVE", "threshold": "abc"},
+        {"ticker": "AAA", "kind": "PRICE_ABOVE", "threshold": 0},
+        {"ticker": "AAA", "kind": "PRICE_BELOW", "threshold": "NaN"},
+        {"ticker": "AAA", "kind": "SIGNAL"},
+        {"ticker": "AAA", "kind": "SIGNAL", "signal_id": "inventada"},
+    ],
 )
 def test_validaciones(ctx, body):
     assert post(ctx[0], body).status_code == 400
@@ -96,7 +116,9 @@ def test_validaciones(ctx, body):
 
 def test_limite_de_alertas_activas(ctx):
     c, user, ins = ctx
-    PriceAlert.objects.bulk_create([PriceAlert(user=user, instrument=ins, kind="PRICE_ABOVE", threshold=D(1)) for _ in range(100)])
+    PriceAlert.objects.bulk_create(
+        [PriceAlert(user=user, instrument=ins, kind="PRICE_ABOVE", threshold=D(1)) for _ in range(100)]
+    )
     assert post(c, {"ticker": "AAA", "kind": "PRICE_ABOVE", "threshold": 1}).status_code == 400
 
 
@@ -108,7 +130,9 @@ def test_aislamiento_y_autenticacion(ctx):
     otro.force_authenticate(get_user_model().objects.create_user("beto", password="x"))
     assert otro.get("/api/v1/technical/alerts").json() == []
     assert otro.post(f"/api/v1/technical/alerts/{a['id']}/cancel").status_code == 404
-    assert otro.post("/api/v1/technical/alerts/evaluate").json()["triggered"] == []  # no evalúa alertas ajenas
+    assert (
+        otro.post("/api/v1/technical/alerts/evaluate").json()["triggered"] == []
+    )  # no evalúa alertas ajenas
     assert PriceAlert.objects.get(pk=a["id"]).active is True
     assert APIClient().get("/api/v1/technical/alerts").status_code in (401, 403)
 

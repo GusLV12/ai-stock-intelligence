@@ -1,0 +1,22 @@
+# Nada sensible ni pesado entra al contexto de construcción.
+.git
+.env
+.env.*
+infra/.env.prod
+**/.env
+**/.venv
+**/.venv311
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.sqlite3
+**/db.sqlite3
+/imports/
+/evidence/
+**/*.xlsx
+**/*.pdf
+**/*.asibak
+workers/qlib/.venv*
+docs

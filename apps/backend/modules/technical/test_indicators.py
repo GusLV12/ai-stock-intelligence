@@ -55,7 +55,9 @@ def test_macd_constante_es_cero_y_coincide_con_la_definicion():
     m = ind.macd(closes)
     ef, es = ind.ema(closes, 12), ind.ema(closes, 26)
     assert m["macd"][25] == approx(ef[25] - es[25]) and m["macd"][24] is None
-    assert m["signal"][33] is not None and m["signal"][32] is None  # señal: 9 valores de MACD desde el índice 25
+    assert (
+        m["signal"][33] is not None and m["signal"][32] is None
+    )  # señal: 9 valores de MACD desde el índice 25
     assert m["histogram"][40] == approx(m["macd"][40] - m["signal"][40])
     with pytest.raises(ValueError):
         ind.macd(closes, 26, 12)
@@ -72,7 +74,9 @@ def test_atr_de_wilder_con_un_gap_ejemplo_manual():
 def test_bollinger_poblacional_ejemplo_manual():
     b = ind.bollinger([1, 2, 3], 3, 2.0)
     sd = math.sqrt(2 / 3)
-    assert b["middle"][2] == 2.0 and b["upper"][2] == approx(2 + 2 * sd) and b["lower"][2] == approx(2 - 2 * sd)
+    assert (
+        b["middle"][2] == 2.0 and b["upper"][2] == approx(2 + 2 * sd) and b["lower"][2] == approx(2 - 2 * sd)
+    )
     flat = ind.bollinger([4.0] * 25)
     assert flat["upper"][-1] == flat["lower"][-1] == flat["middle"][-1] == 4.0
 

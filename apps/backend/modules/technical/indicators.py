@@ -126,7 +126,9 @@ def relative_volume(volumes: list[float | None], n: int = 20) -> Series:
     return out
 
 
-def key_levels(highs: list[float], lows: list[float], last_close: float, wing: int = 5, tolerance: float = 0.01) -> list[dict]:
+def key_levels(
+    highs: list[float], lows: list[float], last_close: float, wing: int = 5, tolerance: float = 0.01
+) -> list[dict]:
     """Soportes y resistencias por pivotes: un máximo (mínimo) es pivote si supera (queda por debajo de) los
     `wing` días a cada lado. Los pivotes a menos de `tolerance` (1%) entre sí forman un nivel con su número de
     toques. Un nivel es soporte si está bajo el último cierre y resistencia si está sobre él."""

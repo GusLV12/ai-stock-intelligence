@@ -95,7 +95,11 @@ def twr(subperiods: list[dict]) -> dict:
         r = end / base - 1
         growth *= 1 + r
         detail.append({"period": i, "return": r})
-    return {"twr": growth - 1, "subperiods": detail, "warnings": ["No es comparable con un XIRR (pondera por dinero)."]}
+    return {
+        "twr": growth - 1,
+        "subperiods": detail,
+        "warnings": ["No es comparable con un XIRR (pondera por dinero)."],
+    }
 
 
 def irr(flows: list[tuple[Decimal, Decimal]]) -> Decimal | None:
@@ -125,7 +129,11 @@ def irr(flows: list[tuple[Decimal, Decimal]]) -> Decimal | None:
 
 
 def dividend_total_return(
-    shares: Decimal, start_price: Decimal, end_price: Decimal, dividends: list[dict], withholding: Decimal = ZERO
+    shares: Decimal,
+    start_price: Decimal,
+    end_price: Decimal,
+    dividends: list[dict],
+    withholding: Decimal = ZERO,
 ) -> dict:
     """Retorno por precio, total bruto y total neto con REINVERSIÓN de dividendos (plan 7.2).
     Cada dividendo: per_share y reinvest_price (precio al que se compran más títulos ese día), en orden cronológico.
@@ -157,7 +165,9 @@ def dividend_total_return(
         "total_return_reinvested_gross": held_g * end_price / initial - 1,
         "total_return_reinvested_net": held_n * end_price / initial - 1,
         "final_shares_net": held_n,
-        "warnings": ["Distinto de sumar dividendos al precio final: la reinversión compra más títulos en su fecha."],
+        "warnings": [
+            "Distinto de sumar dividendos al precio final: la reinversión compra más títulos en su fecha."
+        ],
     }
 
 
@@ -174,7 +184,9 @@ def project(
     CAGR del precio = (precio_futuro/precio_compra)^(1/n) − 1. `dilution` es la dilución neta anual de acciones.
     Si hay dividendos por acción (uno por año), también se calcula la TIR total (precio + dividendos)."""
     if buy_price <= 0 or fundamental_initial <= 0 or exit_multiple <= 0:
-        raise CalcError("Precio de compra, fundamental inicial y múltiplo de salida deben ser mayores que cero.")
+        raise CalcError(
+            "Precio de compra, fundamental inicial y múltiplo de salida deben ser mayores que cero."
+        )
     _years(years)
     if not (Decimal("-0.9") < growth < Decimal(5)):
         raise CalcError("El crecimiento anual debe estar entre -90% y 500%.")
@@ -196,9 +208,13 @@ def project(
         "warnings": [],
     }
     if exit_multiple < entry_multiple:
-        out["warnings"].append("El múltiplo de salida es menor que el de entrada: compresión que resta rendimiento.")
+        out["warnings"].append(
+            "El múltiplo de salida es menor que el de entrada: compresión que resta rendimiento."
+        )
     if exit_multiple > entry_multiple * Decimal("1.25"):
-        out["warnings"].append("El múltiplo de salida supone una expansión de más de 25%: revisa que sea razonable.")
+        out["warnings"].append(
+            "El múltiplo de salida supone una expansión de más de 25%: revisa que sea razonable."
+        )
     if dilution > 0:
         out["warnings"].append("La dilución reduce el crecimiento por acción.")
     if dividends_per_share is not None:
@@ -247,7 +263,10 @@ def max_buy_price(
     if dividends_per_share:
         if years != years.to_integral_value() or len(dividends_per_share) != int(years):
             raise CalcError("Con dividendos, los años deben ser enteros y debe haber un dividendo por año.")
-        by_return += sum((d / _pow(1 + target_return, Decimal(t)) for t, d in enumerate(dividends_per_share, start=1)), ZERO)
+        by_return += sum(
+            (d / _pow(1 + target_return, Decimal(t)) for t, d in enumerate(dividends_per_share, start=1)),
+            ZERO,
+        )
     out = {"max_price_by_return": by_return, "scenario_note": SCENARIO_NOTE, "warnings": []}
     if (estimated_value is None) != (margin_of_safety is None):
         raise CalcError("Para el precio por margen de seguridad indica el valor estimado y el margen.")
@@ -258,5 +277,7 @@ def max_buy_price(
         out["max_price_by_margin_of_safety"] = by_mos
         out["conservative_max_price"] = min(by_return, by_mos)
     else:
-        out["warnings"].append("Sin margen de seguridad: solo se muestra el precio por rentabilidad objetivo.")
+        out["warnings"].append(
+            "Sin margen de seguridad: solo se muestra el precio por rentabilidad objetivo."
+        )
     return out

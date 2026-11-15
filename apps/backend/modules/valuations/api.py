@@ -16,7 +16,11 @@ INPUT_ERRORS = (ValuationError, TypeError, ValueError, KeyError, AttributeError)
 
 
 def _bad(exc: Exception):
-    msg = str(exc) if isinstance(exc, ValuationError) else "Supuestos con formato inválido (revisa tipos y campos)."
+    msg = (
+        str(exc)
+        if isinstance(exc, ValuationError)
+        else "Supuestos con formato inválido (revisa tipos y campos)."
+    )
     raise serializers.ValidationError({"detail": msg}) from exc
 
 
@@ -46,7 +50,9 @@ class FairValueView(APIView):
             if data.get("market_price") is None:  # precio observado con su procedencia
                 mp = latest_price(instrument)
                 if mp is None:
-                    raise serializers.ValidationError({"market_price": "Indica el precio: el instrumento no tiene precios."})
+                    raise serializers.ValidationError(
+                        {"market_price": "Indica el precio: el instrumento no tiene precios."}
+                    )
                 data["market_price"] = str(mp.price)
                 data.setdefault("currency", mp.currency)
                 price_source = {"provider": mp.provider, "observed_at": mp.observed_at.isoformat()}
@@ -73,8 +79,14 @@ class FairValueDetailView(APIView):
         if v is None:
             raise NotFound("Valoración no encontrada.")
         return Response(
-            {"id": v.id, "label": v.label, "model_version": v.model_version, "created_at": v.created_at,
-             "inputs": v.inputs, "result": v.output}
+            {
+                "id": v.id,
+                "label": v.label,
+                "model_version": v.model_version,
+                "created_at": v.created_at,
+                "inputs": v.inputs,
+                "result": v.output,
+            }
         )
 
 

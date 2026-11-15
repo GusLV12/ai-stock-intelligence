@@ -32,7 +32,9 @@ class ChatView(APIView):
             raise serializers.ValidationError({"message": f"Máximo {MAX_CHARS} caracteres."})
         history = request.data.get("history") or []
         if not isinstance(history, list) or len(history) > MAX_HISTORY_ITEMS:
-            raise serializers.ValidationError({"history": f"Debe ser una lista de hasta {MAX_HISTORY_ITEMS} mensajes."})
+            raise serializers.ValidationError(
+                {"history": f"Debe ser una lista de hasta {MAX_HISTORY_ITEMS} mensajes."}
+            )
 
         started = time.monotonic()
         client = None
@@ -42,7 +44,10 @@ class ChatView(APIView):
         except OllamaError as exc:
             self._log(request, message, client, [], 0, 0, AssistantLog.Status.UNAVAILABLE, started)
             return Response(
-                {"detail": str(exc), "note": "El modelo local no está disponible; el resto de la app sigue funcionando."},
+                {
+                    "detail": str(exc),
+                    "note": "El modelo local no está disponible; el resto de la app sigue funcionando.",
+                },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         self._log(

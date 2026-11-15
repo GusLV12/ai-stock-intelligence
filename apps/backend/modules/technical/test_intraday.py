@@ -27,7 +27,9 @@ def session(prices, day=DAY, volume=1000):
     out = []
     for i, (o, h, low, c) in enumerate(prices):
         start = datetime.combine(day, time(9, 30), tzinfo=NY) + timedelta(minutes=5 * i)
-        out.append({"ts": int(start.timestamp()), "open": o, "high": h, "low": low, "close": c, "volume": volume})
+        out.append(
+            {"ts": int(start.timestamp()), "open": o, "high": h, "low": low, "close": c, "volume": volume}
+        )
     return out
 
 
@@ -48,7 +50,9 @@ def test_higiene_descarta_fuera_de_horario_fuera_de_cuadricula_y_nulos():
 
 def test_solo_velas_completas_al_corte():
     raw = session([FLAT] * 4)  # 9:30 .. 9:45
-    cutoff = datetime.combine(DAY, time(9, 47), tzinfo=NY)  # la vela de las 9:45 termina a las 9:50: incompleta
+    cutoff = datetime.combine(
+        DAY, time(9, 47), tzinfo=NY
+    )  # la vela de las 9:45 termina a las 9:50: incompleta
     c = intraday.clean(raw, "America/New_York", cutoff)
     assert len(c["bars"]) == 3 and c["hygiene"]["dropped_incomplete"] == 1
 
@@ -78,7 +82,12 @@ def test_toma_la_sesion_mas_reciente_y_volumen_faltante_cuenta_cero():
 
 def test_sin_velas_utiles():
     assert intraday.clean([], "America/New_York", CUTOFF)["bars"] == []
-    assert intraday.clean(session([FLAT]), "America/New_York", datetime(2026, 11, 13, 9, 31, tzinfo=NY))["session"] is None
+    assert (
+        intraday.clean(session([FLAT]), "America/New_York", datetime(2026, 11, 13, 9, 31, tzinfo=NY))[
+            "session"
+        ]
+        is None
+    )
 
 
 def test_horario_de_verano_se_maneja_por_zona_no_por_offset_fijo():
@@ -89,7 +98,10 @@ def test_horario_de_verano_se_maneja_por_zona_no_por_offset_fijo():
 
 
 def test_vwap_ejemplo_manual():
-    bars = [{"high": 10.0, "low": 8.0, "close": 9.0, "volume": 100.0}, {"high": 12.0, "low": 10.0, "close": 11.0, "volume": 300.0}]
+    bars = [
+        {"high": 10.0, "low": 8.0, "close": 9.0, "volume": 100.0},
+        {"high": 12.0, "low": 10.0, "close": 11.0, "volume": 300.0},
+    ]
     v = intraday.vwap(bars)
     assert v[0] == pytest.approx(9.0) and v[1] == pytest.approx((9 * 100 + 11 * 300) / 400)  # 10.5
     assert intraday.vwap([{"high": 1, "low": 1, "close": 1, "volume": 0.0}]) == [None]
@@ -146,14 +158,24 @@ def yahoo(resp):
 def test_fetch_intraday_devuelve_crudo_con_zona_y_pide_5m():
     http = fake_http(yahoo_payload(session([FLAT] * 3)))
     out = YahooProvider(http=http, sleep=lambda s: None).fetch_intraday("BRK.B", "5d")
-    assert out["timezone"] == "America/New_York" and len(out["raw"]) == 3 and out["raw"][0]["open"] == D("100.0000")
-    assert "BRK-B" in http.calls[0][0] and "interval=5m" in http.calls[0][0] and "range=5d" in http.calls[0][0]
+    assert (
+        out["timezone"] == "America/New_York"
+        and len(out["raw"]) == 3
+        and out["raw"][0]["open"] == D("100.0000")
+    )
+    assert (
+        "BRK-B" in http.calls[0][0] and "interval=5m" in http.calls[0][0] and "range=5d" in http.calls[0][0]
+    )
 
 
 @pytest.mark.parametrize(
     "resp,msg",
-    [({"chart": {"result": None, "error": {"code": "x"}}}, "no tiene datos intradía"), ({}, "formato"),
-     (yahoo_payload([], tz=""), "zona horaria"), (yahoo_payload([], currency=""), "zona horaria")],
+    [
+        ({"chart": {"result": None, "error": {"code": "x"}}}, "no tiene datos intradía"),
+        ({}, "formato"),
+        (yahoo_payload([], tz=""), "zona horaria"),
+        (yahoo_payload([], currency=""), "zona horaria"),
+    ],
 )
 def test_fetch_intraday_respuestas_invalidas(resp, msg):
     with pytest.raises(ProviderError, match=msg):
@@ -182,7 +204,10 @@ def test_api_intradia_con_vwap_orb_e_higiene(client, monkeypatch):
     d = client.get("/api/v1/technical/intraday?ticker=aaa").json()
     assert d["evaluable"] and d["usable"] is True and len(d["bars"]) == 6 and len(d["vwap"]) == 6
     assert d["orb"]["hit"]["time"] == "09:50" and d["session"] == "2026-11-13"
-    assert d["freshness"]["state"] in ("mercado_cerrado", "reciente", "retrasado") and d["freshness"]["age_minutes"] is not None
+    assert (
+        d["freshness"]["state"] in ("mercado_cerrado", "reciente", "retrasado")
+        and d["freshness"]["age_minutes"] is not None
+    )
     assert "no oficial" in d["freshness"]["note"] and "no es una recomendación" in d["note"]
 
 
@@ -195,7 +220,10 @@ def test_api_marca_sesion_con_huecos(client, monkeypatch):
 
 
 def test_api_sin_velas_utiles(client, monkeypatch):
-    use(monkeypatch, yahoo_payload([{"ts": ts(8, 0), "open": 1, "high": 2, "low": 1, "close": 1, "volume": 1}]))
+    use(
+        monkeypatch,
+        yahoo_payload([{"ts": ts(8, 0), "open": 1, "high": 2, "low": 1, "close": 1, "volume": 1}]),
+    )
     d = client.get("/api/v1/technical/intraday?ticker=AAA").json()
     assert d["evaluable"] is False and d["hygiene"]["dropped_extended_hours"] == 1
 

@@ -24,7 +24,13 @@ def clean(raw: list[dict], tz_name: str, cutoff: datetime | None = None) -> dict
     tz = ZoneInfo(tz_name)
     cutoff = cutoff or datetime.now(UTC)
     kept: dict[datetime, dict] = {}
-    stats = {"dropped_null": 0, "dropped_off_grid": 0, "dropped_extended_hours": 0, "dropped_incomplete": 0, "volume_missing": 0}
+    stats = {
+        "dropped_null": 0,
+        "dropped_off_grid": 0,
+        "dropped_extended_hours": 0,
+        "dropped_incomplete": 0,
+        "volume_missing": 0,
+    }
     for r in raw:
         if any(r.get(k) is None for k in ("open", "high", "low", "close")):
             stats["dropped_null"] += 1
@@ -52,7 +58,11 @@ def clean(raw: list[dict], tz_name: str, cutoff: datetime | None = None) -> dict
     last_start = bars[-1]["start"]
     expected = int((last_start - first).total_seconds() // (BAR_MINUTES * 60)) + 1
     have = {b["start"] for b in bars}
-    missing = [first + timedelta(minutes=BAR_MINUTES * i) for i in range(expected) if first + timedelta(minutes=BAR_MINUTES * i) not in have]
+    missing = [
+        first + timedelta(minutes=BAR_MINUTES * i)
+        for i in range(expected)
+        if first + timedelta(minutes=BAR_MINUTES * i) not in have
+    ]
     return {"session": session, "bars": bars, "usable": not missing and bars[0]["start"] == first,
             "missing_slots": [m.strftime("%H:%M") for m in missing], "hygiene": stats}  # fmt: skip
 
@@ -68,7 +78,9 @@ def vwap(bars: list[dict]) -> list[float | None]:
     return out
 
 
-def orb(bars: list[dict], or_minutes: int = 15, no_entries_after: time = time(15, 30), min_price: float = 0.0) -> dict:
+def orb(
+    bars: list[dict], or_minutes: int = 15, no_entries_after: time = time(15, 30), min_price: float = 0.0
+) -> dict:
     """Ruptura del rango de apertura. Rango = máximo y mínimo REALES de los primeros `or_minutes` minutos. Ruptura
     alcista = primera vela completa posterior cuyo CIERRE supera el máximo del rango (se marca al cierre de esa vela);
     ruptura bajista, análogo bajo el mínimo. Sin entradas después de `no_entries_after`."""
@@ -76,7 +88,11 @@ def orb(bars: list[dict], or_minutes: int = 15, no_entries_after: time = time(15
         raise IntradayError("or_minutes debe ser un múltiplo positivo de 5.")
     n_range = or_minutes // BAR_MINUTES
     if len(bars) <= n_range:
-        return {"status": "range_not_complete", "reason": f"Se necesitan más de {n_range} velas para cerrar el rango.", "hit": None}
+        return {
+            "status": "range_not_complete",
+            "reason": f"Se necesitan más de {n_range} velas para cerrar el rango.",
+            "hit": None,
+        }
     rng, after = bars[:n_range], bars[n_range:]
     hi, lo = max(b["high"] for b in rng), min(b["low"] for b in rng)
     out = {
@@ -93,7 +109,15 @@ def orb(bars: list[dict], or_minutes: int = 15, no_entries_after: time = time(15
             out["late"] = True
             break
         if out["hit"] is None and b["close"] > hi:
-            out["hit"] = {"time": end.strftime("%H:%M"), "close": b["close"], "above_range_pct": (b["close"] / hi - 1) * 100}
+            out["hit"] = {
+                "time": end.strftime("%H:%M"),
+                "close": b["close"],
+                "above_range_pct": (b["close"] / hi - 1) * 100,
+            }
         if out["breakdown"] is None and b["close"] < lo:
-            out["breakdown"] = {"time": end.strftime("%H:%M"), "close": b["close"], "below_range_pct": (1 - b["close"] / lo) * 100}
+            out["breakdown"] = {
+                "time": end.strftime("%H:%M"),
+                "close": b["close"],
+                "below_range_pct": (1 - b["close"] / lo) * 100,
+            }
     return out

@@ -18,7 +18,7 @@ import json
 import os
 import shutil
 import sqlite3
-import subprocess
+import subprocess  # nosec B404 - solo ejecuta herramientas de PostgreSQL con argumentos propios, sin shell
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -66,7 +66,11 @@ def _sqlite_counts(path: str) -> dict:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
             )
         ]
-        return {t: con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
+        return {
+            # nosec B608 - nombres de sqlite_master, con comillas escapadas
+            t: con.execute('SELECT COUNT(*) FROM "' + t.replace('"', '""') + '"').fetchone()[0]  # nosec B608
+            for t in tables
+        }
     finally:
         con.close()
 
@@ -238,7 +242,7 @@ def _pg_conn() -> dict:
     }
 
 
-def _pg_run(tool: str, args: list[str], password: str = "", stdin: bytes | None = None) -> bytes:
+def _pg_run(tool: str, args: list[str], password: str = "", stdin: bytes | None = None) -> bytes:  # nosec B107 - cadena vacía = sin contraseña, no un secreto
     """Ejecuta una herramienta de PostgreSQL sin shell. La contraseña va por PGPASSWORD, nunca en los argumentos."""
     exe = shutil.which(tool)
     if exe is None:
@@ -266,7 +270,7 @@ def _pg_tables_and_counts() -> dict:
         names = [r[0] for r in cur.fetchall()]
         out = {}
         for t in names:
-            cur.execute(f"SELECT COUNT(*) FROM {connection.ops.quote_name(t)}")
+            cur.execute(f"SELECT COUNT(*) FROM {connection.ops.quote_name(t)}")  # nosec B608 - nombres de information_schema, citados por el backend
             out[t] = cur.fetchone()[0]
     return out
 

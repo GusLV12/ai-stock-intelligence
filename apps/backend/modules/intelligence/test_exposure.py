@@ -20,7 +20,9 @@ NOW = datetime.now(UTC)
 
 
 def make(ticker, cls="STOCK", sector="non_financial", currency="USD"):
-    ins = Instrument.objects.create(asset_class=cls, name=ticker, quantity_scale=8, sector_kind=sector, currency=currency)
+    ins = Instrument.objects.create(
+        asset_class=cls, name=ticker, quantity_scale=8, sector_kind=sector, currency=currency
+    )
     InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value=ticker)
     return ins
 
@@ -63,10 +65,15 @@ def test_pesos_concentracion_y_conciliacion_contra_el_dashboard(world):
 def test_agrupaciones_por_clase_sector_moneda_y_broker(world):
     user, _, _ = world
     d = client_for(user).get("/api/v1/portfolio/exposure").json()
-    assert d["by_asset_class"]["STOCK"]["weight"] == "0.727273" and d["by_asset_class"]["CRYPTO"]["weight"] == "0.090909"
+    assert (
+        d["by_asset_class"]["STOCK"]["weight"] == "0.727273"
+        and d["by_asset_class"]["CRYPTO"]["weight"] == "0.090909"
+    )
     assert d["by_asset_class"]["CASH"]["weight"] == "0.090909"
     assert d["by_sector_kind"]["bank"]["weight"] == "0.200000"  # 200 de 1000 sin efectivo
-    assert d["by_currency"]["USD"]["weight"] == "1.000000" and d["by_broker"]["GBM_USA"]["weight"] == "1.000000"
+    assert (
+        d["by_currency"]["USD"]["weight"] == "1.000000" and d["by_broker"]["GBM_USA"]["weight"] == "1.000000"
+    )
     assert d["etf_look_through"]["available"] is False and d["etf_look_through"]["etf_positions"] == ["GLD"]
     assert "licencia" in d["etf_look_through"]["note"]
 
@@ -131,7 +138,9 @@ def test_posicion_en_mxn_se_convierte_solo_con_tipo_de_cambio(world):
     assert "MXN1" in sin_fx["excluded"] and sin_fx["reconciliation"]["comparable"] is False
     record_fx("USD", "MXN", D(20), "MANUAL", NOW)
     con_fx = client_for(user).get("/api/v1/portfolio/exposure").json()
-    assert "MXN1" not in con_fx["excluded"] and con_fx["total_value_usd"] == "1150.000000"  # +1000/20 = 50 USD
+    assert (
+        "MXN1" not in con_fx["excluded"] and con_fx["total_value_usd"] == "1150.000000"
+    )  # +1000/20 = 50 USD
     assert con_fx["fx"]["pair"] == "USD/MXN"
 
 

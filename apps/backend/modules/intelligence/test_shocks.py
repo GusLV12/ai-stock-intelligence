@@ -48,7 +48,11 @@ def pos(res):
 def test_shock_a_las_acciones_ejemplo_manual(world):
     res = simulate(H(world), [{"target": "class:STOCK", "pct": D(-10)}])
     p = pos(res)
-    assert p["AAA"]["after_usd"] == D(540) and p["BNK"]["after_usd"] == D(180) and p["GLD"]["after_usd"] == D(100)
+    assert (
+        p["AAA"]["after_usd"] == D(540)
+        and p["BNK"]["after_usd"] == D(180)
+        and p["GLD"]["after_usd"] == D(100)
+    )
     assert res["before_usd"] == D(1100) and res["after_usd"] == D(1020) and res["change_usd"] == D(-80)
     assert round(res["change_pct"], 4) == D("-7.2727")
     assert p["CASH"]["after_usd"] == D(100)  # el efectivo no cambia
@@ -79,7 +83,9 @@ def test_componente_cambiario_separado_del_del_activo(world):
     both = simulate(H(world), [{"target": "class:STOCK", "pct": D(-10)}], D(5), D(20))["mxn_view"]
     assert both["after_mxn"] == D(1020) * D(21) and both["change_mxn"] == D(-580)
     assert both["asset_component_mxn"] == D(-1600) and both["fx_component_mxn"] == D(1020)
-    assert both["asset_component_mxn"] + both["fx_component_mxn"] == both["change_mxn"]  # descomposición exacta
+    assert (
+        both["asset_component_mxn"] + both["fx_component_mxn"] == both["change_mxn"]
+    )  # descomposición exacta
     assert "no es variación del precio" in both["note"]
 
 
@@ -98,10 +104,15 @@ def test_supuestos_explicitos_y_determinismo(world):
 
 @pytest.mark.parametrize(
     "args,msg",
-    [(([], None), "al menos un shock"), (([{"target": "AAA", "pct": D(-150)}], None), "entre -100 y 1000"),
-     (([{"target": "AAA", "pct": "x"}], None), "inválido"), (([{"target": "", "pct": 5}], None), "requiere target"),
-     (([{"target": "AAA", "pct": D("NaN")}], None), "entre -100 y 1000"), (("no", None), "lista"),
-     (([{"target": "AAA", "pct": D(-5)}] * 51, None), "hasta 50")],
+    [
+        (([], None), "al menos un shock"),
+        (([{"target": "AAA", "pct": D(-150)}], None), "entre -100 y 1000"),
+        (([{"target": "AAA", "pct": "x"}], None), "inválido"),
+        (([{"target": "", "pct": 5}], None), "requiere target"),
+        (([{"target": "AAA", "pct": D("NaN")}], None), "entre -100 y 1000"),
+        (("no", None), "lista"),
+        (([{"target": "AAA", "pct": D(-5)}] * 51, None), "hasta 50"),
+    ],
 )
 def test_entradas_invalidas(world, args, msg):
     shocks, fx = args
@@ -131,18 +142,32 @@ def test_api_presets_y_simulacion(world):
     assert {p["id"] for p in presets} == set(PRESETS)
     r = c.post("/api/v1/portfolio/scenarios", {"preset": "stocks_minus_10"}, format="json")
     assert r.status_code == 200, r.content
-    assert r.json()["after_usd"] == "1020.000000" and r.json()["mxn_view"]["asset_component_mxn"] == "-1600.000000"
+    assert (
+        r.json()["after_usd"] == "1020.000000"
+        and r.json()["mxn_view"]["asset_component_mxn"] == "-1600.000000"
+    )
     fx = c.post("/api/v1/portfolio/scenarios", {"preset": "usd_mxn_plus_5"}, format="json").json()
     assert fx["mxn_view"]["fx_component_mxn"] == "1100.000000"
-    mixto = c.post("/api/v1/portfolio/scenarios", {"preset": "crypto_minus_20", "shocks": [{"target": "AAA", "pct": -50}], "fx_usd_mxn_pct": 10}, format="json").json()
+    mixto = c.post(
+        "/api/v1/portfolio/scenarios",
+        {"preset": "crypto_minus_20", "shocks": [{"target": "AAA", "pct": -50}], "fx_usd_mxn_pct": 10},
+        format="json",
+    ).json()
     assert mixto["mxn_view"]["rate_after"] == "22.000000"
     assert pos(mixto)["AAA"]["after_usd"] == "300.000000" and pos(mixto)["BTC"]["after_usd"] == "80.000000"
 
 
 @pytest.mark.parametrize(
     "body",
-    [{}, {"preset": "nada"}, {"shocks": [{"target": "AAA", "pct": -500}]}, {"shocks": "no"}, {"fx_usd_mxn_pct": "abc"},
-     {"fx_usd_mxn_pct": "NaN"}, {"shocks": [{"target": "AAA"}]}],
+    [
+        {},
+        {"preset": "nada"},
+        {"shocks": [{"target": "AAA", "pct": -500}]},
+        {"shocks": "no"},
+        {"fx_usd_mxn_pct": "abc"},
+        {"fx_usd_mxn_pct": "NaN"},
+        {"shocks": [{"target": "AAA"}]},
+    ],
 )
 def test_api_valida(world, body):
     assert client_for(world).post("/api/v1/portfolio/scenarios", body, format="json").status_code == 400
@@ -150,6 +175,11 @@ def test_api_valida(world, body):
 
 def test_api_sin_posiciones_y_autenticacion(world):
     otro = get_user_model().objects.create_user("beto", password="x")
-    assert client_for(otro).post("/api/v1/portfolio/scenarios", {"preset": "stocks_minus_10"}, format="json").status_code == 400
+    assert (
+        client_for(otro)
+        .post("/api/v1/portfolio/scenarios", {"preset": "stocks_minus_10"}, format="json")
+        .status_code
+        == 400
+    )
     assert APIClient().post("/api/v1/portfolio/scenarios", {}, format="json").status_code in (401, 403)
     assert APIClient().get("/api/v1/portfolio/scenarios/presets").status_code in (401, 403)

@@ -10,13 +10,17 @@ class PortfolioPolicy(models.Model):
         DIVIDENDS = "dividends", "Dividendos"
         MIXED = "mixed", "Mixta"
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="portfolio_policies")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="portfolio_policies"
+    )
     name = models.CharField(max_length=100)
     objective = models.CharField(max_length=10, choices=Objective.choices, default=Objective.MIXED)
     max_position_pct = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     max_class_pct = models.JSONField(default=dict, blank=True)  # {"CRYPTO": 10, "ETF": 30}
     min_cash_pct = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-    target_weights = models.JSONField(default=dict, blank=True)  # {"AAA": 20, "BBB": 15}; el resto queda en efectivo
+    target_weights = models.JSONField(
+        default=dict, blank=True
+    )  # {"AAA": 20, "BBB": 15}; el resto queda en efectivo
     horizon_years = models.PositiveSmallIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -37,5 +41,6 @@ class PortfolioPolicy(models.Model):
 
 def active_policy(user):
     return PortfolioPolicy.objects.filter(user=user).first()
+
 
 from .thesis_models import InvestmentThesis, ThesisFollowUp  # noqa: F401  (registra los modelos)

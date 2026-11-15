@@ -39,14 +39,18 @@ class RiskView(APIView):
         except (TypeError, ValueError):
             raise serializers.ValidationError({"window_days": "Entero de días."}) from None
         if not MIN_WINDOW <= window <= MAX_WINDOW:
-            raise serializers.ValidationError({"window_days": f"Debe estar entre {MIN_WINDOW} y {MAX_WINDOW}."})
+            raise serializers.ValidationError(
+                {"window_days": f"Debe estar entre {MIN_WINDOW} y {MAX_WINDOW}."}
+            )
         since = timezone.now().date() - timedelta(days=window)
 
         loaded = load_holdings(request.user)
         holdings = [h for h in loaded["holdings"] if h.value_base is not None]
         total = sum((h.value_base for h in holdings), Decimal(0))
         if total <= 0:
-            return Response({"evaluable": False, "note": "Sin posiciones valoradas: no hay riesgo que calcular."})
+            return Response(
+                {"evaluable": False, "note": "Sin posiciones valoradas: no hay riesgo que calcular."}
+            )
         by_instrument = {h.instrument_id: h for h in holdings if h.instrument_id}
         raw_series = _series_for(list(by_instrument), since)
         series = {by_instrument[i].ticker: bars for i, bars in raw_series.items()}

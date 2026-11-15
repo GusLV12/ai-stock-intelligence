@@ -64,7 +64,12 @@ def test_retorno_real_y_fx():
 
 def test_twr_neutraliza_flujos_externos():
     # 100 -> 110 (+10%); se aportan 100 al inicio del 2.º periodo: base 210 -> 231 (+10%). TWR = 1.1*1.1-1 = 21%.
-    r = twr([{"begin_value": D(100), "end_value": D(110)}, {"begin_value": D(110), "end_value": D(231), "flow": D(100)}])
+    r = twr(
+        [
+            {"begin_value": D(100), "end_value": D(110)},
+            {"begin_value": D(110), "end_value": D(231), "flow": D(100)},
+        ]
+    )
     assert close(r["twr"], D("0.21"))
     with pytest.raises(CalcError):
         twr([])
@@ -84,15 +89,15 @@ def test_dividendos_reinvertidos_son_distintos_de_sumarlos_al_precio():
     assert r["price_return"] == 0 and close(r["total_return_reinvested_gross"], D("0.05"))
     assert close(r["total_return_cash_gross"], D("0.05"))
     # Dos dividendos: el 2.º se paga sobre más títulos (interés compuesto) => reinversión > efectivo
-    two = dividend_total_return(
-        D(10), D(100), D(100), [{"per_share": D(5), "reinvest_price": D(100)}] * 2
-    )
+    two = dividend_total_return(D(10), D(100), D(100), [{"per_share": D(5), "reinvest_price": D(100)}] * 2)
     assert two["total_return_reinvested_gross"] > two["total_return_cash_gross"]
     assert close(two["total_return_reinvested_gross"], D("1.05") ** 2 - 1)
 
 
 def test_dividendos_con_retencion():
-    r = dividend_total_return(D(10), D(100), D(100), [{"per_share": D(10), "reinvest_price": D(100)}], withholding=D("0.30"))
+    r = dividend_total_return(
+        D(10), D(100), D(100), [{"per_share": D(10), "reinvest_price": D(100)}], withholding=D("0.30")
+    )
     assert close(r["total_return_reinvested_net"], D("0.07"))  # 10% × (1 − 30%)
     with pytest.raises(CalcError, match="retención"):
         dividend_total_return(D(1), D(1), D(1), [], withholding=D(1))
@@ -120,7 +125,9 @@ def test_compresion_de_multiplo_resta_rendimiento_y_se_advierte():
 def test_dilucion_reduce_el_crecimiento_por_accion():
     sin = project(D(100), D(5), D("0.10"), D(5), D(20))
     con = project(D(100), D(5), D("0.10"), D(5), D(20), dilution=D("0.02"))
-    assert con["effective_growth"] < sin["effective_growth"] and close(con["effective_growth"], D("1.10") * D("0.98") - 1)
+    assert con["effective_growth"] < sin["effective_growth"] and close(
+        con["effective_growth"], D("1.10") * D("0.98") - 1
+    )
     assert any("dilución" in w for w in con["warnings"])
 
 
@@ -133,8 +140,16 @@ def test_tir_total_con_dividendos():
 
 
 def test_comparador_de_escenarios_no_mezcla_ni_pondera():
-    base = {"buy_price": D(100), "fundamental_initial": D(5), "growth": D("0.10"), "years": D(5), "exit_multiple": D(20)}
-    out = compare_scenarios(base, {"bear": {"growth": D("0.02"), "exit_multiple": D(15)}, "bull": {"growth": D("0.15")}})
+    base = {
+        "buy_price": D(100),
+        "fundamental_initial": D(5),
+        "growth": D("0.10"),
+        "years": D(5),
+        "exit_multiple": D(20),
+    }
+    out = compare_scenarios(
+        base, {"bear": {"growth": D("0.02"), "exit_multiple": D(15)}, "bull": {"growth": D("0.15")}}
+    )
     c = out["cagr_price"]
     assert c["bear"] < c["base"] < c["bull"] and set(c) == {"base", "bear", "bull"}
     assert "probabilidad" in out["scenario_note"]

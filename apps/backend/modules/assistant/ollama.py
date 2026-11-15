@@ -58,7 +58,9 @@ def post_json(url: str, payload: dict, timeout: int) -> dict:
 
 
 class OllamaClient:
-    def __init__(self, base_url=None, model=None, timeout=None, num_ctx=None, num_predict=None, http=post_json):
+    def __init__(
+        self, base_url=None, model=None, timeout=None, num_ctx=None, num_predict=None, http=post_json
+    ):
         self.base_url = _validate_url(base_url or os.getenv("OLLAMA_URL", "http://127.0.0.1:11434"))
         self.model = model or os.getenv("OLLAMA_MODEL", "qwen3:1.7b")
         self.timeout = int(timeout or os.getenv("OLLAMA_TIMEOUT", "180"))

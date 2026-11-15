@@ -75,7 +75,9 @@ def calculate(mode: str, p: dict) -> dict:
                 _date(p["start_date"], "start_date"), _date(p.get("end_date"), "end_date"),
             )  # fmt: skip
         else:
-            res = engine.cagr(dec(p.get("initial"), "initial"), dec(p.get("final"), "final"), dec(p.get("years"), "years"))
+            res = engine.cagr(
+                dec(p.get("initial"), "initial"), dec(p.get("final"), "final"), dec(p.get("years"), "years")
+            )
     elif mode == "projected":
         args = _projection_args(p)
         scenarios = p.get("scenarios")
@@ -93,14 +95,22 @@ def calculate(mode: str, p: dict) -> dict:
     elif mode == "real":
         res = engine.real_return(dec(p.get("nominal"), "nominal"), dec(p.get("inflation"), "inflation"))
     elif mode == "fx":
-        res = engine.fx_adjusted_return(dec(p.get("local_return"), "local_return"), dec(p.get("fx_start"), "fx_start"), dec(p.get("fx_end"), "fx_end"))
+        res = engine.fx_adjusted_return(
+            dec(p.get("local_return"), "local_return"),
+            dec(p.get("fx_start"), "fx_start"),
+            dec(p.get("fx_end"), "fx_end"),
+        )
     elif mode == "twr":
         subs = _list(p, "subperiods", required=True)
         res = engine.twr(
             [
-                {"begin_value": dec(s.get("begin_value"), "begin_value"), "end_value": dec(s.get("end_value"), "end_value"),
-                 "flow": dec(s.get("flow", 0), "flow")}
-                for s in subs if isinstance(s, dict)
+                {
+                    "begin_value": dec(s.get("begin_value"), "begin_value"),
+                    "end_value": dec(s.get("end_value"), "end_value"),
+                    "flow": dec(s.get("flow", 0), "flow"),
+                }
+                for s in subs
+                if isinstance(s, dict)
             ]
         )
     elif mode == "dividends":
@@ -142,7 +152,9 @@ def to_csv(data: dict) -> str:
                 walk(section, f"{prefix}[{i}]", v)
         else:
             text = "" if value is None else str(value)
-            w.writerow([section, prefix, ("'" + text) if text[:1] in "=+-@" and not _is_number(text) else text])
+            w.writerow(
+                [section, prefix, ("'" + text) if text[:1] in "=+-@" and not _is_number(text) else text]
+            )
 
     w.writerow(["modo", "", data["mode"]])
     walk("entradas", "", data["inputs"])

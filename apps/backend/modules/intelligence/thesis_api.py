@@ -50,7 +50,9 @@ def _summary(t: InvestmentThesis) -> dict:
 
 class ThesesView(APIView):
     def get(self, request):
-        return Response(plain([_summary(t) for t in InvestmentThesis.objects.filter(user=request.user)[:100]]))
+        return Response(
+            plain([_summary(t) for t in InvestmentThesis.objects.filter(user=request.user)[:100]])
+        )
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
@@ -63,11 +65,20 @@ class ThesesView(APIView):
             if instrument is None:
                 raise serializers.ValidationError({"instrument": "Instrumento no encontrado."})
         valuation_id = data.get("valuation_id")
-        if valuation_id not in (None, "") and not Valuation.objects.filter(pk=valuation_id, user=request.user).exists():
+        if (
+            valuation_id not in (None, "")
+            and not Valuation.objects.filter(pk=valuation_id, user=request.user).exists()
+        ):
             raise serializers.ValidationError({"valuation_id": "Valoración no encontrada."})
         sources = data.get("sources") or []
-        if not isinstance(sources, list) or len(sources) > 20 or any(not isinstance(s, str) or len(s) > 300 for s in sources):
-            raise serializers.ValidationError({"sources": "Lista de hasta 20 textos de máximo 300 caracteres."})
+        if (
+            not isinstance(sources, list)
+            or len(sources) > 20
+            or any(not isinstance(s, str) or len(s) > 300 for s in sources)
+        ):
+            raise serializers.ValidationError(
+                {"sources": "Lista de hasta 20 textos de máximo 300 caracteres."}
+            )
         price, source = _price_for(instrument)
         t = InvestmentThesis.objects.create(
             user=request.user, instrument=instrument, title=_text(data, "title", 150), strategy=strategy,
@@ -92,8 +103,13 @@ class ThesisDetailView(APIView):
         return Response(
             plain(
                 {
-                    **_summary(t), "thesis": t.thesis, "risks": t.risks, "invalidation": t.invalidation,
-                    "price_source": t.price_source, "valuation_id": t.valuation_id, "sources": t.sources,
+                    **_summary(t),
+                    "thesis": t.thesis,
+                    "risks": t.risks,
+                    "invalidation": t.invalidation,
+                    "price_source": t.price_source,
+                    "valuation_id": t.valuation_id,
+                    "sources": t.sources,
                     "follow_ups": [_follow_data(f, t.price) for f in t.follow_ups.all()],
                 }
             )
@@ -106,8 +122,12 @@ class FollowUpView(APIView):
         data = request.data if isinstance(request.data, dict) else {}
         st = data.get("status", "OPEN")
         if st not in ThesisFollowUp.Status.values:
-            raise serializers.ValidationError({"status": f"Debe ser uno de {', '.join(ThesisFollowUp.Status.values)}."})
+            raise serializers.ValidationError(
+                {"status": f"Debe ser uno de {', '.join(ThesisFollowUp.Status.values)}."}
+            )
         price, source = _price_for(t.instrument)
-        f = ThesisFollowUp.objects.create(thesis=t, status=st, note=_text(data, "note", 3000), price=price, price_source=source)
+        f = ThesisFollowUp.objects.create(
+            thesis=t, status=st, note=_text(data, "note", 3000), price=price, price_source=source
+        )
         base: Decimal | None = t.price
         return Response(plain(_follow_data(f, base)), status=status.HTTP_201_CREATED)

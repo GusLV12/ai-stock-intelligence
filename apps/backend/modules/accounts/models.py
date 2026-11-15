@@ -19,9 +19,7 @@ class InvestmentAccount(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["owner", "name"], name="uniq_account_name_per_owner")
-        ]
+        constraints = [models.UniqueConstraint(fields=["owner", "name"], name="uniq_account_name_per_owner")]
 
     def __str__(self):
         return f"{self.name} ({self.broker})"

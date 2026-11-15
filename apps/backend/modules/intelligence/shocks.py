@@ -59,7 +59,9 @@ def validate_shocks(shocks) -> list[dict]:
     return out
 
 
-def simulate(holdings: list, shocks: list[dict], fx_pct: Decimal | None = None, fx_rate: Decimal | None = None) -> dict:
+def simulate(
+    holdings: list, shocks: list[dict], fx_pct: Decimal | None = None, fx_rate: Decimal | None = None
+) -> dict:
     shocks = validate_shocks(shocks)  # siempre se valida, también cuando ya vienen como Decimal
     if fx_pct is not None:
         if fx_pct <= -100 or fx_pct > 1000:
@@ -105,7 +107,9 @@ def simulate(holdings: list, shocks: list[dict], fx_pct: Decimal | None = None, 
     if unmatched:
         assumptions.append(f"Shocks sin efecto (ninguna posición coincide): {', '.join(unmatched)}.")
     result = {
-        "before_usd": before, "after_usd": after, "change_usd": after - before,
+        "before_usd": before,
+        "after_usd": after,
+        "change_usd": after - before,
         "change_pct": (after - before) / before * HUNDRED if before else ZERO,
         "positions": sorted(rows, key=lambda r: r["change_usd"]),
         "by_asset_class": by_class,
@@ -117,7 +121,10 @@ def simulate(holdings: list, shocks: list[dict], fx_pct: Decimal | None = None, 
         r0 = fx_rate
         r1 = fx_rate * (ONE + (fx_pct or ZERO) / HUNDRED)
         result["mxn_view"] = {
-            "rate_before": r0, "rate_after": r1, "before_mxn": before * r0, "after_mxn": after * r1,
+            "rate_before": r0,
+            "rate_after": r1,
+            "before_mxn": before * r0,
+            "after_mxn": after * r1,
             "change_mxn": after * r1 - before * r0,
             "asset_component_mxn": (after - before) * r0,  # variación de precios al tipo de cambio inicial
             "fx_component_mxn": after * (r1 - r0),  # efecto del tipo de cambio sobre el valor final

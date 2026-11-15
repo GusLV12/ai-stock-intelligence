@@ -32,3 +32,4 @@ Thumbs.db
 
 # Qlib / MLflow (registros locales)
 mlruns/
+!.env.*.example

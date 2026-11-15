@@ -20,7 +20,9 @@ def _rows(account: InvestmentAccount):
     )
     tickers = {
         i.instrument_id: i.value
-        for i in InstrumentIdentifier.objects.filter(kind="TICKER", instrument__in={t.instrument for t in txs})
+        for i in InstrumentIdentifier.objects.filter(
+            kind="TICKER", instrument__in={t.instrument for t in txs}
+        )
     }
     for t in txs:
         yield {

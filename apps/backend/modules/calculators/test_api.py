@@ -22,7 +22,16 @@ def test_cagr_historico_y_por_fechas(client):
     assert r.status_code == 200, r.content
     assert r.json()["result"]["cagr"].startswith("0.0999") or r.json()["result"]["cagr"].startswith("0.1000")
     assert r.json()["inputs"]["initial"] == 10000 and "computed_at" in r.json()
-    r = cagr(client, {"mode": "historical", "initial": "100", "final": "110", "start_date": "2025-01-01", "end_date": "2026-01-01"})
+    r = cagr(
+        client,
+        {
+            "mode": "historical",
+            "initial": "100",
+            "final": "110",
+            "start_date": "2025-01-01",
+            "end_date": "2026-01-01",
+        },
+    )
     assert r.json()["result"]["cagr"] == "0.100000"
 
 
@@ -37,8 +46,13 @@ def test_proyeccion_con_escenarios(client):
 
 
 def test_otros_modos(client):
-    assert cagr(client, {"mode": "real", "nominal": "0.10", "inflation": "0.04"}).json()["result"]["real_return"] == "0.057692"
-    fx = cagr(client, {"mode": "fx", "local_return": "0.10", "fx_start": 18, "fx_end": "19.8"}).json()["result"]
+    assert (
+        cagr(client, {"mode": "real", "nominal": "0.10", "inflation": "0.04"}).json()["result"]["real_return"]
+        == "0.057692"
+    )
+    fx = cagr(client, {"mode": "fx", "local_return": "0.10", "fx_start": 18, "fx_end": "19.8"}).json()[
+        "result"
+    ]
     assert fx["return_in_mxn"] == "0.210000" and fx["fx_component"] == "0.100000"
     tw = cagr(client, {"mode": "twr", "subperiods": [{"begin_value": 100, "end_value": 110},
                                                       {"begin_value": 110, "end_value": 231, "flow": 100}]})  # fmt: skip
@@ -96,14 +110,17 @@ def test_exportacion_csv_de_la_hipotesis(client):
     rows = list(csv.reader(io.StringIO(r.content.decode())))
     assert rows[0] == ["seccion", "campo", "valor"]
     assert ["entradas", "initial", "100"] in rows and ["resultados", "cagr", "0.100000"] in rows
-    assert cagr(client, {"mode": "historical", "initial": 1, "final": 2, "years": 1}, "?format=xml").status_code == 400
+    assert (
+        cagr(client, {"mode": "historical", "initial": 1, "final": 2, "years": 1}, "?format=xml").status_code
+        == 400
+    )
 
 
 def test_csv_neutraliza_formulas(client):
     # Un texto de entrada que empiece por '=' no debe quedar como fórmula de hoja de cálculo.
     from .service import to_csv
 
-    text = to_csv({"mode": "x", "inputs": {"nota": "=HYPERLINK(\"http://x\")", "n": "-5"}, "result": {}})
+    text = to_csv({"mode": "x", "inputs": {"nota": '=HYPERLINK("http://x")', "n": "-5"}, "result": {}})
     assert "'=HYPERLINK" in text and ",-5" in text
 
 

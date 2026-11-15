@@ -71,7 +71,10 @@ def test_la_diversificacion_reduce_la_volatilidad_del_portafolio():
     b = [rng.uniform(-0.02, 0.02) for _ in range(150)]  # independiente de A
     res = risk.analyze({"A": bars(a), "B": bars(b)}, {"A": 0.5, "B": 0.5})
     p = res["portfolio"]
-    assert p["annualized_volatility"] < p["weighted_average_asset_volatility"] and p["diversification_benefit"] > 0
+    assert (
+        p["annualized_volatility"] < p["weighted_average_asset_volatility"]
+        and p["diversification_benefit"] > 0
+    )
     assert p["covered_share_of_invested"] == pytest.approx(1.0)
 
 
@@ -118,7 +121,9 @@ def test_fetch_history_descarta_hoy_nulos_y_no_positivos():
     q[1], q[2] = None, -3.0
     out = provider(resp).fetch_history("AAA", "3mo")
     days = [d for d, _ in out["bars"]]
-    assert out["currency"] == "USD" and date(2026, 11, 14) not in days  # la barra de hoy (puede estar a medias)
+    assert (
+        out["currency"] == "USD" and date(2026, 11, 14) not in days
+    )  # la barra de hoy (puede estar a medias)
     assert len(out["bars"]) == 2 and days == sorted(days)  # 5 barras: hoy, 1 nula y 1 negativa fuera
 
 
@@ -151,10 +156,18 @@ def held(db):
     for t, cls in (("AAA", "STOCK"), ("BBB", "STOCK")):
         ins = Instrument.objects.create(asset_class=cls, name=t, quantity_scale=8)
         InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value=t)
-        record_buy(account=acc, instrument=ins, quantity=D(1), price=D(100), executed_at=datetime(2026, 1, 1, tzinfo=UTC))
+        record_buy(
+            account=acc,
+            instrument=ins,
+            quantity=D(1),
+            price=D(100),
+            executed_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
         record_price(ins, D(100), "MANUAL", datetime.now(UTC))
         out[t] = ins
-    PositionSnapshot.objects.create(account=acc, file_sha256="a" * 64, as_of=datetime.now(UTC), cash_amount=D(100))
+    PositionSnapshot.objects.create(
+        account=acc, file_sha256="a" * 64, as_of=datetime.now(UTC), cash_amount=D(100)
+    )
     return user, out
 
 
@@ -166,7 +179,11 @@ def test_refresh_history_es_idempotente_y_no_duplica(held):
     assert sum(res["saved"].values()) > 0 and not res["failed"]
     n = DailyClose.objects.count()
     again = refresh_history(provider(yahoo_history(40)), "3mo")
-    assert DailyClose.objects.count() == n and again["saved"] == {} and sorted(again["unchanged"]) == ["AAA", "BBB"]
+    assert (
+        DailyClose.objects.count() == n
+        and again["saved"] == {}
+        and sorted(again["unchanged"]) == ["AAA", "BBB"]
+    )
     assert {c.provider for c in DailyClose.objects.all()} == {"YAHOO_UNOFFICIAL"}
 
 
@@ -195,11 +212,23 @@ def client_for(user):
 def load_closes(ins, returns_):
     today = datetime.now(UTC).date()
     p, day = 100.0, today - timedelta(days=len(returns_) + 5)
-    rows = [DailyClose(instrument=ins, date=day, close=D(str(round(p, 6))), currency="USD", provider="YAHOO_UNOFFICIAL")]
+    rows = [
+        DailyClose(
+            instrument=ins, date=day, close=D(str(round(p, 6))), currency="USD", provider="YAHOO_UNOFFICIAL"
+        )
+    ]
     for r in returns_:
         day += timedelta(days=1)
         p *= 1 + r
-        rows.append(DailyClose(instrument=ins, date=day, close=D(str(round(p, 6))), currency="USD", provider="YAHOO_UNOFFICIAL"))
+        rows.append(
+            DailyClose(
+                instrument=ins,
+                date=day,
+                close=D(str(round(p, 6))),
+                currency="USD",
+                provider="YAHOO_UNOFFICIAL",
+            )
+        )
     DailyClose.objects.bulk_create(rows)
 
 
@@ -219,7 +248,9 @@ def test_api_avisa_que_emisoras_no_tienen_historial(held):
     user, ins = held
     load_closes(ins["AAA"], [0.01, -0.01] * 40)
     d = client_for(user).get("/api/v1/portfolio/risk").json()
-    assert any("refresh_price_history" in w and "BBB" in w for w in d["warnings"]) and "BBB" not in d["assets"]
+    assert (
+        any("refresh_price_history" in w and "BBB" in w for w in d["warnings"]) and "BBB" not in d["assets"]
+    )
 
 
 @pytest.mark.parametrize("w", ["10", "abc", "99999", "-5"])
@@ -237,4 +268,6 @@ def test_los_cierres_se_redondean_a_4_decimales():
     resp = yahoo_history(3)
     resp["chart"]["result"][0]["indicators"]["quote"][0]["close"] = [356.2699890136719, 356.27, 356.2700001]
     out = provider(resp).fetch_history("AAA", "1mo")
-    assert [c for _, c in out["bars"]] == [D("356.2700")] * 2  # la barra de hoy se descarta; el ruido de float desaparece
+    assert [c for _, c in out["bars"]] == [
+        D("356.2700")
+    ] * 2  # la barra de hoy se descarta; el ruido de float desaparece

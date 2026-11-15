@@ -9,7 +9,16 @@ from .models import PriceAlert
 from .signals import SignalError, analyze
 
 MAX_ACTIVE_PER_USER = 100
-SIGNAL_IDS = {"breakout", "reclaim_ma", "oversold", "oversold_bounce", "trend_up", "macd_bull_cross", "volume_spike", "near_level"}
+SIGNAL_IDS = {
+    "breakout",
+    "reclaim_ma",
+    "oversold",
+    "oversold_bounce",
+    "trend_up",
+    "macd_bull_cross",
+    "volume_spike",
+    "near_level",
+}
 
 
 def _bars(instrument_id):
@@ -26,7 +35,17 @@ def _bars(instrument_id):
     def f(v):
         return None if v is None else float(v)
 
-    return [{"date": r.date, "open": f(r.open), "high": f(r.high), "low": f(r.low), "close": float(r.close), "volume": r.volume} for r in chosen]
+    return [
+        {
+            "date": r.date,
+            "open": f(r.open),
+            "high": f(r.high),
+            "low": f(r.low),
+            "close": float(r.close),
+            "volume": r.volume,
+        }
+        for r in chosen
+    ]
 
 
 def _check(alert: PriceAlert) -> dict | None:
@@ -36,7 +55,11 @@ def _check(alert: PriceAlert) -> dict | None:
         mp = latest_price(alert.instrument)
         if mp is None:
             return None
-        hit = mp.price >= alert.threshold if alert.kind == PriceAlert.Kind.PRICE_ABOVE else mp.price <= alert.threshold
+        hit = (
+            mp.price >= alert.threshold
+            if alert.kind == PriceAlert.Kind.PRICE_ABOVE
+            else mp.price <= alert.threshold
+        )
         if not hit:
             return None
         age = round((now - mp.observed_at).total_seconds() / 3600, 1)
@@ -52,7 +75,12 @@ def _check(alert: PriceAlert) -> dict | None:
     sig = next((s for s in res["signals"] if s["id"] == alert.signal_id), None)
     if sig is None or sig["fired"] is not True:
         return None
-    return {"signal": alert.signal_id, "rule": sig["rule"], "as_of": str(res["as_of"]), "conditions": sig["conditions"]}
+    return {
+        "signal": alert.signal_id,
+        "rule": sig["rule"],
+        "as_of": str(res["as_of"]),
+        "conditions": sig["conditions"],
+    }
 
 
 def evaluate(alerts) -> list[PriceAlert]:

@@ -41,7 +41,13 @@ def world(db):
     for t in ("AAA", "BBB"):
         ins = Instrument.objects.create(asset_class="STOCK", name=t, quantity_scale=8)
         InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value=t)
-        record_buy(account=acc, instrument=ins, quantity=D(1), price=D(100), executed_at=datetime(2026, 1, 1, tzinfo=UTC))
+        record_buy(
+            account=acc,
+            instrument=ins,
+            quantity=D(1),
+            price=D(100),
+            executed_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
         record_price(ins, D(100), "MANUAL", datetime.now(UTC))
         out[t] = ins
     return user, out
@@ -57,10 +63,23 @@ def test_analyze_devuelve_velas_series_senales_y_frescura(world):
     assert len(s["ema_slow"]) == 250 - 199 and len(s["sma"]) == 250 - 19  # calentamiento descartado
     assert s["rsi"][0]["time"] and 0 <= float(s["rsi"][-1]["value"]) <= 100
     ids = {x["id"] for x in d["signals"]}
-    assert {"breakout", "reclaim_ma", "oversold", "trend_up", "macd_bull_cross", "volume_spike", "near_level"} <= ids
+    assert {
+        "breakout",
+        "reclaim_ma",
+        "oversold",
+        "trend_up",
+        "macd_bull_cross",
+        "volume_spike",
+        "near_level",
+    } <= ids
     assert all(x["rule"] and "fired" in x for x in d["signals"])
     f = d["freshness"]
-    assert f["provider"] == "YAHOO_UNOFFICIAL" and f["age_days"] == 1 and f["stale"] is False and "no son tiempo real" in f["note"]
+    assert (
+        f["provider"] == "YAHOO_UNOFFICIAL"
+        and f["age_days"] == 1
+        and f["stale"] is False
+        and "no son tiempo real" in f["note"]
+    )
     assert d["params"]["rsi_days"] == 14 and "no son pruebas independientes" in d["note"]
 
 
@@ -129,21 +148,33 @@ def test_scan_y_symbols(world):
 
 def test_trade_plan_ejemplo_del_plan_y_validaciones(world):
     c = client_for(world[0])
-    r = c.post("/api/v1/technical/trade-plan", {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "risk_budget": 50}, format="json")
+    r = c.post(
+        "/api/v1/technical/trade-plan",
+        {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "risk_budget": 50},
+        format="json",
+    )
     assert r.status_code == 200, r.content
     d = r.json()
     assert d["shares"] == "25.000000" and d["verdict"] == "PASS" and d["reward_risk_gross"] == "2.000000"
     blocked = c.post("/api/v1/technical/trade-plan", {"entry": 100, "stop": 98, "target": 102, "capital": 10000, "risk_budget": 50,
                                                       "limits": {"min_reward_risk": "1.5"}}, format="json").json()  # fmt: skip
     assert blocked["verdict"] == "BLOCK" and blocked["blocked_by"] == ["min_reward_risk"]
-    for bad in ({}, {"entry": 100, "stop": 101, "target": 104, "capital": 10000}, {"entry": "x", "stop": 1, "target": 2, "capital": 3},
-                {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "side": "SELL"},
-                {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "limits": {"otra": 1}},
-                {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "shares_scale": "x"}):
+    for bad in (
+        {},
+        {"entry": 100, "stop": 101, "target": 104, "capital": 10000},
+        {"entry": "x", "stop": 1, "target": 2, "capital": 3},
+        {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "side": "SELL"},
+        {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "limits": {"otra": 1}},
+        {"entry": 100, "stop": 98, "target": 104, "capital": 10000, "shares_scale": "x"},
+    ):
         assert c.post("/api/v1/technical/trade-plan", bad, format="json").status_code == 400
 
 
 def test_autenticacion(world):
-    for method, url in (("get", "/api/v1/technical/analyze?ticker=AAA"), ("get", "/api/v1/technical/scan"),
-                        ("get", "/api/v1/technical/symbols"), ("post", "/api/v1/technical/trade-plan")):
+    for method, url in (
+        ("get", "/api/v1/technical/analyze?ticker=AAA"),
+        ("get", "/api/v1/technical/scan"),
+        ("get", "/api/v1/technical/symbols"),
+        ("post", "/api/v1/technical/trade-plan"),
+    ):
         assert getattr(APIClient(), method)(url).status_code in (401, 403)

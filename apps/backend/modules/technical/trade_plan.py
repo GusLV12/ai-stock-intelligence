@@ -47,7 +47,10 @@ def evaluate(
     lim = {**DEFAULT_LIMITS, **(limits or {})}
 
     slip = slippage_pct / HUNDRED
-    eff_entry, eff_stop = entry * (1 + slip), stop * (1 - slip)  # peor caso: se entra más caro y se sale más barato
+    eff_entry, eff_stop = (
+        entry * (1 + slip),
+        stop * (1 - slip),
+    )  # peor caso: se entra más caro y se sale más barato
     risk_ps, reward_ps = entry - stop, target - entry
     eff_risk_ps = eff_entry - eff_stop  # las comisiones se suman al riesgo total, no por título
     budget = risk_budget if risk_budget is not None else capital * lim["max_risk_per_trade_pct"] / HUNDRED
@@ -66,14 +69,31 @@ def evaluate(
     eff_rr = reward_total / risk_total if risk_total > 0 else None
 
     checks = [
-        {"limit": "min_reward_risk", "passed": rr >= lim["min_reward_risk"], "detail": f"R:R bruta {rr:.2f} (mínimo {lim['min_reward_risk']})."},
-        {"limit": "max_risk_per_trade_pct", "passed": risk_total / capital * HUNDRED <= lim["max_risk_per_trade_pct"],
-         "detail": f"Riesgo {risk_total / capital * HUNDRED:.2f}% del capital (máximo {lim['max_risk_per_trade_pct']}%)."},
-        {"limit": "max_position_pct", "passed": position_value / capital * HUNDRED <= lim["max_position_pct"],
-         "detail": f"Posición {position_value / capital * HUNDRED:.1f}% del capital (máximo {lim['max_position_pct']}%)."},
-        {"limit": "max_daily_loss_pct", "passed": (daily_loss_so_far + risk_total) / capital * HUNDRED <= lim["max_daily_loss_pct"],
-         "detail": f"Pérdida diaria posible {(daily_loss_so_far + risk_total) / capital * HUNDRED:.2f}% (máximo {lim['max_daily_loss_pct']}%)."},
-        {"limit": "size", "passed": shares > 0, "detail": f"{shares} títulos." if shares > 0 else "El tamaño calculado es 0 títulos."},
+        {
+            "limit": "min_reward_risk",
+            "passed": rr >= lim["min_reward_risk"],
+            "detail": f"R:R bruta {rr:.2f} (mínimo {lim['min_reward_risk']}).",
+        },
+        {
+            "limit": "max_risk_per_trade_pct",
+            "passed": risk_total / capital * HUNDRED <= lim["max_risk_per_trade_pct"],
+            "detail": f"Riesgo {risk_total / capital * HUNDRED:.2f}% del capital (máximo {lim['max_risk_per_trade_pct']}%).",
+        },
+        {
+            "limit": "max_position_pct",
+            "passed": position_value / capital * HUNDRED <= lim["max_position_pct"],
+            "detail": f"Posición {position_value / capital * HUNDRED:.1f}% del capital (máximo {lim['max_position_pct']}%).",
+        },
+        {
+            "limit": "max_daily_loss_pct",
+            "passed": (daily_loss_so_far + risk_total) / capital * HUNDRED <= lim["max_daily_loss_pct"],
+            "detail": f"Pérdida diaria posible {(daily_loss_so_far + risk_total) / capital * HUNDRED:.2f}% (máximo {lim['max_daily_loss_pct']}%).",
+        },
+        {
+            "limit": "size",
+            "passed": shares > 0,
+            "detail": f"{shares} títulos." if shares > 0 else "El tamaño calculado es 0 títulos.",
+        },
     ]
     verdict = "PASS" if all(c["passed"] for c in checks) else "BLOCK"
     return {

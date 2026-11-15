@@ -13,31 +13,53 @@ from .models import PriceAlert
 
 
 def _data(a: PriceAlert) -> dict:
-    ticker = next(iter(InstrumentIdentifier.objects.filter(instrument=a.instrument, kind="TICKER").values_list("value", flat=True)), a.instrument.name)
+    ticker = next(
+        iter(
+            InstrumentIdentifier.objects.filter(instrument=a.instrument, kind="TICKER").values_list(
+                "value", flat=True
+            )
+        ),
+        a.instrument.name,
+    )
     return {"id": a.id, "ticker": ticker, "kind": a.kind, "threshold": a.threshold, "signal_id": a.signal_id, "note": a.note,
             "active": a.active, "created_at": a.created_at, "triggered_at": a.triggered_at, "triggered_detail": a.triggered_detail}  # fmt: skip
 
 
 class AlertsView(APIView):
     def get(self, request):
-        return Response(plain([_data(a) for a in PriceAlert.objects.filter(user=request.user).select_related("instrument")[:200]]))
+        return Response(
+            plain(
+                [
+                    _data(a)
+                    for a in PriceAlert.objects.filter(user=request.user).select_related("instrument")[:200]
+                ]
+            )
+        )
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
         ticker = str(data.get("ticker", "")).strip().upper()
-        ident = InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker).select_related("instrument").first()
+        ident = (
+            InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker)
+            .select_related("instrument")
+            .first()
+        )
         if ident is None:
             raise serializers.ValidationError({"ticker": "Emisora no encontrada."})
         kind = data.get("kind")
         if kind not in PriceAlert.Kind.values:
-            raise serializers.ValidationError({"kind": f"Debe ser uno de {', '.join(PriceAlert.Kind.values)}."})
+            raise serializers.ValidationError(
+                {"kind": f"Debe ser uno de {', '.join(PriceAlert.Kind.values)}."}
+            )
         if PriceAlert.objects.filter(user=request.user, active=True).count() >= MAX_ACTIVE_PER_USER:
             raise serializers.ValidationError({"detail": f"Máximo {MAX_ACTIVE_PER_USER} alertas activas."})
         threshold, signal_id = None, ""
         if kind == PriceAlert.Kind.SIGNAL:
             signal_id = str(data.get("signal_id", ""))
             if signal_id not in SIGNAL_IDS:
-                raise serializers.ValidationError({"signal_id": f"Debe ser uno de {', '.join(sorted(SIGNAL_IDS))}."})
+                raise serializers.ValidationError(
+                    {"signal_id": f"Debe ser uno de {', '.join(sorted(SIGNAL_IDS))}."}
+                )
         else:
             try:
                 threshold = Decimal(str(data.get("threshold")))
@@ -46,7 +68,14 @@ class AlertsView(APIView):
             if not threshold.is_finite() or threshold <= 0 or threshold > Decimal("1e12"):
                 raise serializers.ValidationError({"threshold": "Debe ser mayor que cero."})
         note = str(data.get("note", ""))[:200]
-        a = PriceAlert.objects.create(user=request.user, instrument=ident.instrument, kind=kind, threshold=threshold, signal_id=signal_id, note=note)
+        a = PriceAlert.objects.create(
+            user=request.user,
+            instrument=ident.instrument,
+            kind=kind,
+            threshold=threshold,
+            signal_id=signal_id,
+            note=note,
+        )
         return Response(plain(_data(a)), status=status.HTTP_201_CREATED)
 
 

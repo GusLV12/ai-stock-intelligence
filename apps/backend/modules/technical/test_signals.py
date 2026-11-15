@@ -26,13 +26,18 @@ def sig(res):
 def test_ruptura_de_maximos_con_valores_y_regla():
     closes = [100.0] * 25 + [105.0]
     s = sig(analyze(make_bars(closes)))["breakout"]
-    assert s["fired"] is True and s["conditions"][0]["value"] == 105.0 and s["conditions"][1]["value"] == 100.0
+    assert (
+        s["fired"] is True and s["conditions"][0]["value"] == 105.0 and s["conditions"][1]["value"] == 100.0
+    )
     assert "20 cierres anteriores" in s["rule"]
     assert sig(analyze(make_bars([100.0] * 25 + [99.0])))["breakout"]["fired"] is False
 
 
 def test_recupera_la_media():
-    closes = [100.0] * 25 + [95.0, 101.0]  # el cierre previo (95) está bajo la SMA y el actual (101) sobre ella
+    closes = [100.0] * 25 + [
+        95.0,
+        101.0,
+    ]  # el cierre previo (95) está bajo la SMA y el actual (101) sobre ella
     assert sig(analyze(make_bars(closes)))["reclaim_ma"]["fired"] is True
     assert sig(analyze(make_bars([100.0] * 27)))["reclaim_ma"]["fired"] is False
 
@@ -43,7 +48,9 @@ def test_sobreventa_y_rebote():
     rebote = [*caida, caida[-1] + 1.0]
     r = sig(analyze(make_bars(rebote)))
     assert r["oversold_bounce"]["fired"] is True and r["oversold"]["conditions"][0]["value"] < 30
-    assert sig(analyze(make_bars([*caida, caida[-1] - 1.0])))["oversold_bounce"]["fired"] is False  # sigue cayendo
+    assert (
+        sig(analyze(make_bars([*caida, caida[-1] - 1.0])))["oversold_bounce"]["fired"] is False
+    )  # sigue cayendo
 
 
 def test_tendencia_alcista_exige_200_velas():
@@ -75,7 +82,11 @@ def test_macd_cruce_coincide_con_la_definicion_en_cada_prefijo():
 
 def test_pocas_velas_son_no_evaluables_con_motivo():
     res = analyze(make_bars([100.0, 101.0, 102.0, 103.0, 104.0]))
-    no_eval = [x for x in res["signals"] if x["id"] in ("breakout", "reclaim_ma", "oversold", "trend_up", "macd_bull_cross")]
+    no_eval = [
+        x
+        for x in res["signals"]
+        if x["id"] in ("breakout", "reclaim_ma", "oversold", "trend_up", "macd_bull_cross")
+    ]
     assert no_eval and all(x["fired"] is None and x["reason"] for x in no_eval)
     assert sig(res)["breakout"]["fired"] is None and "21 velas" in sig(res)["breakout"]["reason"]
 
@@ -94,15 +105,24 @@ def test_plan_por_atr_y_niveles():
     res = analyze(bars)
     plan = res["plan_suggestion"]
     assert plan["entry"] == 100.0 and plan["stop"] == pytest.approx(100 - 2 * res["context"]["atr"])
-    assert plan["target"] == pytest.approx(100 + 2 * 2 * res["context"]["atr"]) and "no una recomendación" in plan["basis"]
+    assert (
+        plan["target"] == pytest.approx(100 + 2 * 2 * res["context"]["atr"])
+        and "no una recomendación" in plan["basis"]
+    )
     sin_hl = [{**b, "high": None, "low": None} for b in bars]
     assert analyze(sin_hl)["plan_suggestion"] is None and sig(analyze(sin_hl))["near_level"]["fired"] is None
 
 
 @pytest.mark.parametrize(
     "over,msg",
-    [({"foo": 1}, "desconocido"), ({"breakout_days": "x"}, "inválido"), ({"breakout_days": 1}, "entre 2 y 400"),
-     ({"ema_fast": 200, "ema_slow": 50}, "menor"), ({"rsi_oversold": 120}, "entre 0 y 100"), ({"stop_atr": -1}, "positivos")],
+    [
+        ({"foo": 1}, "desconocido"),
+        ({"breakout_days": "x"}, "inválido"),
+        ({"breakout_days": 1}, "entre 2 y 400"),
+        ({"ema_fast": 200, "ema_slow": 50}, "menor"),
+        ({"rsi_oversold": 120}, "entre 0 y 100"),
+        ({"stop_atr": -1}, "positivos"),
+    ],
 )
 def test_parametros_invalidos(over, msg):
     with pytest.raises(SignalError, match=msg):
@@ -122,7 +142,9 @@ def test_entradas_invalidas():
 
 
 def test_ejemplo_del_plan_9_4_entrada_100_stop_98_objetivo_104():
-    r = evaluate(D(100), D(98), D(104), capital=D(10000), risk_budget=D(50), limits={"max_risk_per_trade_pct": D(1)})
+    r = evaluate(
+        D(100), D(98), D(104), capital=D(10000), risk_budget=D(50), limits={"max_risk_per_trade_pct": D(1)}
+    )
     assert r["shares"] == D(25) and r["risk_per_share"] == D(2) and r["reward_per_share"] == D(4)
     assert r["reward_risk_gross"] == D(2) and r["risk_total"] == D(50) and r["reward_total"] == D(100)
     assert r["position_value"] == D(2500) and r["verdict"] == "PASS" and r["limited_by"] == "riesgo"
@@ -136,14 +158,18 @@ def test_se_bloquea_por_cada_limite():
     assert rr["verdict"] == "BLOCK" and rr["blocked_by"] == ["min_reward_risk"]
     riesgo = evaluate(**base, risk_budget=D(200))  # 2% del capital > 1%
     assert "max_risk_per_trade_pct" in riesgo["blocked_by"]
-    grande = evaluate(**base, risk_budget=D(100), limits={"max_risk_per_trade_pct": D(5), "max_position_pct": D(10)})
+    grande = evaluate(
+        **base, risk_budget=D(100), limits={"max_risk_per_trade_pct": D(5), "max_position_pct": D(10)}
+    )
     assert grande["blocked_by"] == ["max_position_pct"]  # 50 títulos = 5000 = 50%
     diaria = evaluate(**base, risk_budget=D(50), daily_loss_so_far=D(160))  # 160 + 50 > 2% de 10000
     assert diaria["blocked_by"] == ["max_daily_loss_pct"]
 
 
 def test_limitado_por_capital_y_tamano_cero():
-    r = evaluate(D(100), D(99), D(103), capital=D(1000), risk_budget=D(100), limits={"max_position_pct": D(100)})
+    r = evaluate(
+        D(100), D(99), D(103), capital=D(1000), risk_budget=D(100), limits={"max_position_pct": D(100)}
+    )
     assert r["shares"] == D(10) and r["limited_by"] == "capital"  # el riesgo permitiría 100 títulos
     cero = evaluate(D(500), D(490), D(530), capital=D(300), risk_budget=D(3))
     assert cero["shares"] == D(0) and "size" in cero["blocked_by"]
@@ -151,16 +177,33 @@ def test_limitado_por_capital_y_tamano_cero():
 
 def test_fraccionarios_deslizamiento_y_comision_empeoran_el_resultado():
     sin = evaluate(D(100), D(98), D(104), D(10000), risk_budget=D(50), shares_scale=2)
-    con = evaluate(D(100), D(98), D(104), D(10000), risk_budget=D(50), shares_scale=2, slippage_pct=D("0.5"), commission_per_trade=D(1))
+    con = evaluate(
+        D(100),
+        D(98),
+        D(104),
+        D(10000),
+        risk_budget=D(50),
+        shares_scale=2,
+        slippage_pct=D("0.5"),
+        commission_per_trade=D(1),
+    )
     assert sin["shares"] == D("25.00") and con["shares"] < sin["shares"]
-    assert con["reward_risk_net"] < sin["reward_risk_net"] and all("deslizamiento" not in w for w in con["warnings"])
+    assert con["reward_risk_net"] < sin["reward_risk_net"] and all(
+        "deslizamiento" not in w for w in con["warnings"]
+    )
 
 
 @pytest.mark.parametrize(
     "kw,msg",
-    [({"side": "SELL"}, "cortos"), ({"stop": D(101)}, "stop < entrada"), ({"target": D(99)}, "stop < entrada"),
-     ({"capital": D(0)}, "mayores que cero"), ({"risk_budget": D(0)}, "presupuesto"), ({"shares_scale": 9}, "shares_scale"),
-     ({"slippage_pct": D(-1)}, "negativos")],
+    [
+        ({"side": "SELL"}, "cortos"),
+        ({"stop": D(101)}, "stop < entrada"),
+        ({"target": D(99)}, "stop < entrada"),
+        ({"capital": D(0)}, "mayores que cero"),
+        ({"risk_budget": D(0)}, "presupuesto"),
+        ({"shares_scale": 9}, "shares_scale"),
+        ({"slippage_pct": D(-1)}, "negativos"),
+    ],
 )
 def test_plan_entradas_invalidas(kw, msg):
     args = {"entry": D(100), "stop": D(98), "target": D(104), "capital": D(10000), "risk_budget": D(50), **kw}

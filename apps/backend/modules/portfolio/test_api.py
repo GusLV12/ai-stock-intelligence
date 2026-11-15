@@ -35,9 +35,13 @@ def test_requiere_autenticacion(db):
 
 def test_flujo_compra_venta_resumen(client, setup):
     acc, ins = setup
-    r = client.post("/api/v1/portfolio/transactions", {**BUY, "account": acc, "instrument": ins}, format="json")
+    r = client.post(
+        "/api/v1/portfolio/transactions", {**BUY, "account": acc, "instrument": ins}, format="json"
+    )
     assert r.status_code == 201, r.content
-    r = client.post("/api/v1/portfolio/transactions", {**SELL, "account": acc, "instrument": ins}, format="json")
+    r = client.post(
+        "/api/v1/portfolio/transactions", {**SELL, "account": acc, "instrument": ins}, format="json"
+    )
     assert r.status_code == 201, r.content
 
     pos = client.get("/api/v1/portfolio/positions").json()
@@ -55,7 +59,9 @@ def test_flujo_compra_venta_resumen(client, setup):
 
 def test_venta_mayor_al_saldo_devuelve_400(client, setup):
     acc, ins = setup
-    r = client.post("/api/v1/portfolio/transactions", {**SELL, "account": acc, "instrument": ins}, format="json")
+    r = client.post(
+        "/api/v1/portfolio/transactions", {**SELL, "account": acc, "instrument": ins}, format="json"
+    )
     assert r.status_code == 400
     assert "Saldo insuficiente" in str(r.json())
     assert client.get("/api/v1/portfolio/transactions").json() == []

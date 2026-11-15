@@ -1,0 +1,145 @@
+# Despliegue remoto PRIVADO/PRODUCCIÓN (plan 17.6). Probado solo como configuración (`docker compose config`): las imágenes
+# se construyen con los Dockerfiles de infra/dockerfiles. Copia infra/.env.prod.example a infra/.env.prod y rellénalo;
+# ese archivo NO se sube al repositorio.
+#
+#   docker compose -f infra/compose.prod.yaml --env-file infra/.env.prod up -d --build
+#   docker compose -f infra/compose.prod.yaml --env-file infra/.env.prod --profile inference up -d   # + Ollama separado
+#
+# Red: solo Caddy publica puertos (80/443). PostgreSQL está en una red interna sin salida a internet.
+# Volumen ≠ respaldo: los respaldos cifrados van al volumen `backups`; copia ese volumen FUERA de este servidor.
+
+x-seguro: &seguro
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  read_only: true
+  tmpfs: [/tmp]
+
+x-backend-env: &backend-env
+  DJANGO_DEBUG: "false"
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?define DJANGO_SECRET_KEY}
+  DJANGO_ALLOWED_HOSTS: ${APP_DOMAIN:?define APP_DOMAIN}
+  DJANGO_CSRF_TRUSTED_ORIGINS: https://${APP_DOMAIN}
+  DJANGO_BEHIND_PROXY: "true"
+  DB_HOST: db
+  DB_NAME: ${DB_NAME:-asi}
+  DB_USER: ${DB_USER:-asi}
+  DB_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD}
+  TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+  BANXICO_TOKEN: ${BANXICO_TOKEN:-}
+
+services:
+  db:
+    <<: *seguro
+    image: postgres:17
+    read_only: false  # PostgreSQL escribe en su directorio de datos
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
+    environment:
+      POSTGRES_DB: ${DB_NAME:-asi}
+      POSTGRES_USER: ${DB_USER:-asi}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [interna]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asi} -d ${DB_NAME:-asi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    image: asi-backend
+    build: {context: .., dockerfile: infra/dockerfiles/backend.Dockerfile}
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    environment: *backend-env
+    networks: [interna]
+    depends_on: {db: {condition: service_healthy}}
+    restart: "no"
+
+  backend:
+    <<: *seguro
+    image: asi-backend
+    environment: *backend-env
+    networks: [interna, salida]  # salida: proveedores de precios (Yahoo/Twelve Data/Banxico)
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,urllib.request as u; r=u.Request('http://127.0.0.1:8000/api/v1/ready', headers={'Host': os.environ['DJANGO_ALLOWED_HOSTS'], 'X-Forwarded-Proto': 'https'}); sys.exit(0 if u.urlopen(r, timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 6s
+      retries: 5
+
+  web:
+    <<: *seguro
+    image: asi-web
+    build: {context: .., dockerfile: infra/dockerfiles/web.Dockerfile}
+    networks: [interna]
+    mem_limit: 512m
+
+  mcp:
+    <<: *seguro
+    image: asi-backend
+    command: ["python", "/app/apps/mcp_server/server.py"]
+    environment:
+      <<: *backend-env
+      ASI_MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8765"
+      MCP_OAUTH_ISSUER: ${MCP_OAUTH_ISSUER:?define MCP_OAUTH_ISSUER (tu proveedor de identidad, https)}
+      MCP_OAUTH_AUDIENCE: https://${MCP_DOMAIN:?define MCP_DOMAIN}/mcp
+      MCP_OAUTH_JWKS_URL: ${MCP_OAUTH_JWKS_URL:-}
+      MCP_ALLOWED_HOSTS: ${MCP_DOMAIN}
+    networks: [interna, salida]  # salida: descarga las llaves públicas (JWKS) del proveedor de identidad
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    mem_limit: 512m
+    profiles: [mcp]
+
+  backup:
+    <<: *seguro
+    image: asi-backend
+    entrypoint: ["sh", "-c", "while true; do python manage.py backup_db --dest /backups --keep ${BACKUP_KEEP:-14} || echo 'RESPALDO FALLIDO'; sleep ${BACKUP_INTERVAL_SECONDS:-86400}; done"]
+    environment:
+      <<: *backend-env
+      BACKUP_KEY: ${BACKUP_KEY:?define BACKUP_KEY (manage.py generate_backup_key; guárdala en tu gestor de contraseñas)}
+    volumes: [backups:/backups]
+    networks: [interna]
+    depends_on: {migrate: {condition: service_completed_successfully}}
+
+  caddy:
+    <<: *seguro
+    image: caddy:2
+    read_only: false  # Caddy guarda certificados y su estado
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      MCP_DOMAIN: ${MCP_DOMAIN:-mcp.invalid}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [interna, salida]
+    depends_on: [backend, web]
+
+  # Inferencia local SEPARADA del backend (plan 17): solo con --profile inference. El backend apunta a ella por la red interna;
+  # como no es loopback, se exige confirmar OLLAMA_ALLOW_REMOTE=true (tus datos se envían a este servicio, que es tuyo).
+  ollama:
+    <<: *seguro
+    image: ollama/ollama:latest
+    read_only: false
+    volumes: [ollama:/root/.ollama]
+    networks: [interna, salida]  # salida solo para descargar modelos
+    profiles: [inference]
+    mem_limit: 8g
+
+networks:
+  interna: {internal: true}  # sin acceso a internet
+  salida: {}
+
+volumes:
+  pgdata:
+  backups:
+  caddy_data:
+  caddy_config:
+  ollama:

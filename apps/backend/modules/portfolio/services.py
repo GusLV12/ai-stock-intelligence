@@ -162,7 +162,10 @@ def get_position(account: InvestmentAccount, instrument: Instrument) -> Position
         cost += lot.total_cost * lot.quantity_remaining / lot.quantity_acquired
     cost = cost.quantize(MONEY_PLACES)
     realized = sum(
-        (d.realized_pnl for d in LotDisposal.objects.filter(lot__account=account, lot__instrument=instrument)),
+        (
+            d.realized_pnl
+            for d in LotDisposal.objects.filter(lot__account=account, lot__instrument=instrument)
+        ),
         ZERO,
     )
     average = (cost / quantity).quantize(MONEY_PLACES) if quantity > 0 else None

@@ -123,7 +123,11 @@ def sensitivity_wacc_g(params: dict, wacc_steps=(-2, -1, 0, 1, 2), g_steps=(-1, 
 def ddm_gordon(d1: Decimal, cost_of_equity: Decimal, growth: Decimal) -> dict:
     """V0 = D1/(r − g) (plan 5.3)."""
     if d1 <= 0:
-        return {"applicable": False, "reason": "Sin dividendo esperado positivo: el DDM no aplica.", "warnings": []}
+        return {
+            "applicable": False,
+            "reason": "Sin dividendo esperado positivo: el DDM no aplica.",
+            "warnings": [],
+        }
     _check_rate("Costo de capital", cost_of_equity, ZERO, ONE)
     _check_rate("Crecimiento del dividendo", growth)
     if cost_of_equity <= growth:
@@ -134,7 +138,9 @@ def ddm_gordon(d1: Decimal, cost_of_equity: Decimal, growth: Decimal) -> dict:
     return {"applicable": True, "value_per_share": d1 / (cost_of_equity - growth), "warnings": warnings}
 
 
-def ddm_two_stage(d0: Decimal, g_high: Decimal, years_high: int, g_stable: Decimal, cost_of_equity: Decimal) -> dict:
+def ddm_two_stage(
+    d0: Decimal, g_high: Decimal, years_high: int, g_stable: Decimal, cost_of_equity: Decimal
+) -> dict:
     """DDM de dos etapas: crecimiento alto durante `years_high` años y luego estable a perpetuidad."""
     if d0 <= 0:
         return {"applicable": False, "reason": "Sin dividendo positivo: el DDM no aplica.", "warnings": []}
@@ -175,7 +181,11 @@ def _quantile(sorted_vals: list[Decimal], q: Decimal) -> Decimal:
 
 
 def relative_value(
-    method: str, metric: Decimal, multiples: list[Decimal], net_debt: Decimal = ZERO, diluted_shares: Decimal | None = None
+    method: str,
+    metric: Decimal,
+    multiples: list[Decimal],
+    net_debt: Decimal = ZERO,
+    diluted_shares: Decimal | None = None,
 ) -> dict:
     """Valor por múltiplos de comparables (plan 5.4). Para ev_ebitda, `metric` es el EBITDA TOTAL y se
     convierte a valor por acción con la deuda neta y las acciones diluidas; en el resto, `metric` es por acción.
@@ -192,8 +202,16 @@ def relative_value(
             "warnings": [],
         }
     if metric <= 0:
-        return {"applicable": False, "reason": "El valor en libros por acción no es positivo.", "warnings": []}
-    low, mid, high = _quantile(valid, Decimal("0.25")), _quantile(valid, Decimal("0.5")), _quantile(valid, Decimal("0.75"))
+        return {
+            "applicable": False,
+            "reason": "El valor en libros por acción no es positivo.",
+            "warnings": [],
+        }
+    low, mid, high = (
+        _quantile(valid, Decimal("0.25")),
+        _quantile(valid, Decimal("0.5")),
+        _quantile(valid, Decimal("0.75")),
+    )
 
     def per_share(mult: Decimal) -> Decimal:
         if method == "ev_ebitda":
@@ -215,7 +233,9 @@ def relative_value(
     }  # fmt: skip
 
 
-def reverse_dcf(price: Decimal, params: dict, low=Decimal("-0.5"), high=ONE, tol=Decimal("0.0000001")) -> dict:
+def reverse_dcf(
+    price: Decimal, params: dict, low=Decimal("-0.5"), high=ONE, tol=Decimal("0.0000001")
+) -> dict:
     """Crecimiento anual constante del FCFF implícito en el precio actual (plan 5.5), por bisección.
     `params` son los de dcf() sin `growth`."""
     if price <= 0:

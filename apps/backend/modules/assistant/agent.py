@@ -44,9 +44,17 @@ REFUSAL = (
 # Enrutado determinista: los modelos pequeños a veces no llaman la herramienta aunque deban.
 ADVICE = re.compile(r"\b(debo|deber[ií]a|conviene|recomiend|ignora)", re.IGNORECASE)
 ROUTES = [
-    ("get_transactions", re.compile(r"operaci|movimiento|transacci|compr[eé]|vend[ií]|historial", re.IGNORECASE)),
+    (
+        "get_transactions",
+        re.compile(r"operaci|movimiento|transacci|compr[eé]|vend[ií]|historial", re.IGNORECASE),
+    ),
     ("list_positions", re.compile(r"posici|peso|emisora|acciones|t[ií]tulos|cartera por", re.IGNORECASE)),
-    ("portfolio_summary", re.compile(r"cu[aá]nto|valor|vale|total|resumen|ganancia|p[eé]rdida|rendimiento|portafolio", re.IGNORECASE)),
+    (
+        "portfolio_summary",
+        re.compile(
+            r"cu[aá]nto|valor|vale|total|resumen|ganancia|p[eé]rdida|rendimiento|portafolio", re.IGNORECASE
+        ),
+    ),
 ]
 
 
@@ -149,7 +157,11 @@ def _sources(results: list[dict]) -> list[dict]:
 def _history(history) -> list[dict]:
     clean = []
     for h in (history or [])[-MAX_HISTORY:]:
-        if isinstance(h, dict) and h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
+        if (
+            isinstance(h, dict)
+            and h.get("role") in ("user", "assistant")
+            and isinstance(h.get("content"), str)
+        ):
             clean.append({"role": h["role"], "content": h["content"][:MAX_CHARS]})
     return clean
 
@@ -166,7 +178,13 @@ def run_chat(user, message: str, history, client, execute=execute_tool) -> ChatR
             total += 1
             results.append((route, res))
             calls.append({"name": route, "ok": res["ok"], "error": res.get("error"), "routed": True})
-            messages.append({"role": "assistant", "content": "", "tool_calls": [{"function": {"name": route, "arguments": {}}}]})
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"function": {"name": route, "arguments": {}}}],
+                }
+            )
             messages.append({"role": "tool", "tool_name": route, "content": to_model_text(res)})
             continue
         if not requested:
@@ -179,7 +197,13 @@ def run_chat(user, message: str, history, client, execute=execute_tool) -> ChatR
                 answer=answer, tool_calls=calls, sources=_sources(results),
                 unverified_numbers=unverified_numbers(answer, data, message), steps=step, guardrail=guardrail,
             )  # fmt: skip
-        messages.append({"role": "assistant", "content": reply["content"], "tool_calls": reply["tool_calls"][:MAX_CALLS_PER_STEP]})
+        messages.append(
+            {
+                "role": "assistant",
+                "content": reply["content"],
+                "tool_calls": reply["tool_calls"][:MAX_CALLS_PER_STEP],
+            }
+        )
         for tc in requested:
             fn = tc.get("function", {}) if isinstance(tc, dict) else {}
             name, args = str(fn.get("name", "")), fn.get("arguments", {})

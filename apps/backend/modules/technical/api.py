@@ -32,7 +32,14 @@ def _bars_for(instrument_id, days):
     chosen = by_provider[provider][-days:]
     f = lambda v: None if v is None else float(v)
     return [
-        {"date": r.date, "open": f(r.open), "high": f(r.high), "low": f(r.low), "close": float(r.close), "volume": r.volume}
+        {
+            "date": r.date,
+            "open": f(r.open),
+            "high": f(r.high),
+            "low": f(r.low),
+            "close": float(r.close),
+            "volume": r.volume,
+        }
         for r in chosen
     ], provider
 
@@ -40,15 +47,29 @@ def _bars_for(instrument_id, days):
 def _freshness(bars, provider):
     last = bars[-1]["date"]
     age = (timezone.now().date() - last).days
-    return {"provider": provider, "last_bar": last, "age_days": age, "stale": age > STALE_DAYS, "note": DELAY_NOTE}
+    return {
+        "provider": provider,
+        "last_bar": last,
+        "age_days": age,
+        "stale": age > STALE_DAYS,
+        "note": DELAY_NOTE,
+    }
 
 
 def _line(dates, values, digits=4):
-    return [{"time": d.isoformat(), "value": round(v, digits)} for d, v in zip(dates, values, strict=True) if v is not None]
+    return [
+        {"time": d.isoformat(), "value": round(v, digits)}
+        for d, v in zip(dates, values, strict=True)
+        if v is not None
+    ]
 
 
 def _find_instrument(ticker):
-    ident = InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker).select_related("instrument").first()
+    ident = (
+        InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker)
+        .select_related("instrument")
+        .first()
+    )
     return ident.instrument if ident else None
 
 
@@ -56,7 +77,9 @@ class SymbolsView(APIView):
     def get(self, request):
         held = {h.ticker for h in load_holdings(request.user)["holdings"] if h.asset_class != "CASH"}
         out = []
-        for ident in InstrumentIdentifier.objects.filter(kind="TICKER").select_related("instrument").order_by("value"):
+        for ident in (
+            InstrumentIdentifier.objects.filter(kind="TICKER").select_related("instrument").order_by("value")
+        ):
             rows = DailyClose.objects.filter(instrument=ident.instrument)
             n = rows.count()
             if n == 0 and ident.value not in held:
@@ -113,10 +136,19 @@ class AnalyzeView(APIView):
             "macd_signal": _line(dates, macd["signal"]),
             "macd_histogram": _line(dates, macd["histogram"]),
             "atr": _line(dates, ind.atr(highs, lows, closes, p["atr_days"])) if has_ohlc else [],
-            "rvol": _line(dates, ind.relative_volume(vols, p["rvol_days"]), 2) if all(v is not None for v in vols) else [],
+            "rvol": _line(dates, ind.relative_volume(vols, p["rvol_days"]), 2)
+            if all(v is not None for v in vols)
+            else [],
         }
         candles = [
-            {"time": b["date"].isoformat(), "open": b["open"], "high": b["high"], "low": b["low"], "close": b["close"], "volume": b["volume"]}
+            {
+                "time": b["date"].isoformat(),
+                "open": b["open"],
+                "high": b["high"],
+                "low": b["low"],
+                "close": b["close"],
+                "volume": b["volume"],
+            }
             for b in bars
         ]
         return Response(plain({"ticker": ticker, "evaluable": True, "has_ohlc": has_ohlc, "freshness": _freshness(bars, provider),
@@ -144,7 +176,11 @@ class ScanView(APIView):
                     "rsi": res["context"].get("rsi"), "last_close": res["context"]["last_close"],
                 }
             )  # fmt: skip
-        return Response(plain({"rows": rows, "note": "Eventos reproducibles sobre cierres diarios; no son recomendaciones."}))
+        return Response(
+            plain(
+                {"rows": rows, "note": "Eventos reproducibles sobre cierres diarios; no son recomendaciones."}
+            )
+        )
 
 
 def _dec(data, key, default=None, required=False):
@@ -167,7 +203,9 @@ class TradePlanView(APIView):
         data = request.data if isinstance(request.data, dict) else {}
         raw_limits = data.get("limits") or {}
         if not isinstance(raw_limits, dict) or set(raw_limits) - set(trade_plan.DEFAULT_LIMITS):
-            raise serializers.ValidationError({"limits": f"Claves permitidas: {', '.join(trade_plan.DEFAULT_LIMITS)}."})
+            raise serializers.ValidationError(
+                {"limits": f"Claves permitidas: {', '.join(trade_plan.DEFAULT_LIMITS)}."}
+            )
         limits = {k: _dec(raw_limits, k) for k in raw_limits if raw_limits[k] not in (None, "")}
         try:
             scale = int(data.get("shares_scale", 0))

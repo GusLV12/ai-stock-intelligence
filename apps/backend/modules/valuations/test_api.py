@@ -79,7 +79,9 @@ def test_etf_no_evaluable_se_guarda_sin_cifra(client):
 
 
 def test_las_valoraciones_son_inmutables_y_privadas(client):
-    vid = post(client, "fair-value", {"instrument_class": "STOCK", "market_price": 80, "dcf": DCF}).json()["id"]
+    vid = post(client, "fair-value", {"instrument_class": "STOCK", "market_price": 80, "dcf": DCF}).json()[
+        "id"
+    ]
     with pytest.raises(ProtectedError):
         Valuation.objects.get(pk=vid).delete()
     otro = APIClient()

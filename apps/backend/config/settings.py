@@ -21,7 +21,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
     if not DEBUG:
         raise RuntimeError("DJANGO_SECRET_KEY es obligatorio cuando DJANGO_DEBUG=false")
-    SECRET_KEY = "dev-only-insecure-key-do-not-use-in-production"
+    SECRET_KEY = "dev-only-insecure-key-do-not-use-in-production"  # nosec B105 - solo con DEBUG=true; en producción es obligatoria
 
 ALLOWED_HOSTS = [h for h in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 

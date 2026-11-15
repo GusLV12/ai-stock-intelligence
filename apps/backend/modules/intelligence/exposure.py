@@ -20,7 +20,10 @@ def _weights(rows, key):
     for r in rows:
         acc[key(r)] += r.value_base
     # Con total 0 (p. ej. todo liquidado, solo efectivo) los pesos son 0, no una división indefinida.
-    return {k: {"value": v, "weight": v / total if total else ZERO} for k, v in sorted(acc.items(), key=lambda kv: -kv[1])}
+    return {
+        k: {"value": v, "weight": v / total if total else ZERO}
+        for k, v in sorted(acc.items(), key=lambda kv: -kv[1])
+    }
 
 
 def analyze(holdings: list, policy: dict | None = None) -> dict:
@@ -55,7 +58,8 @@ def analyze(holdings: list, policy: dict | None = None) -> dict:
             "position_count": len(risky),
         },
         "etf_look_through": {
-            "available": False, "note": ETF_NOTE,
+            "available": False,
+            "note": ETF_NOTE,
             "etf_positions": [p["ticker"] for p in pos_weights if p["asset_class"] == "ETF"],
         },
         "excluded": excluded,
@@ -82,10 +86,26 @@ def check_policy(pos_weights, by_class, policy: dict) -> list[dict]:
     for cls, limit in (policy.get("max_class_pct") or {}).items():
         w = by_class.get(cls, {}).get("weight", ZERO) * HUNDRED
         if w > limit:
-            breaches.append({"type": "asset_class", "subject": cls, "weight_pct": w, "limit_pct": limit, "excess_pct": w - limit})
+            breaches.append(
+                {
+                    "type": "asset_class",
+                    "subject": cls,
+                    "weight_pct": w,
+                    "limit_pct": limit,
+                    "excess_pct": w - limit,
+                }
+            )
     min_cash = policy.get("min_cash_pct")
     if min_cash is not None:
         cash = by_class.get("CASH", {}).get("weight", ZERO) * HUNDRED
         if cash < min_cash:
-            breaches.append({"type": "min_cash", "subject": "CASH", "weight_pct": cash, "limit_pct": min_cash, "excess_pct": min_cash - cash})
+            breaches.append(
+                {
+                    "type": "min_cash",
+                    "subject": "CASH",
+                    "weight_pct": cash,
+                    "limit_pct": min_cash,
+                    "excess_pct": min_cash - cash,
+                }
+            )
     return breaches

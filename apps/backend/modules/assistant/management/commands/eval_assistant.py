@@ -15,7 +15,9 @@ class Command(BaseCommand):
     help = "Evalúa el asistente local con un banco de preguntas fijas."
 
     def add_arguments(self, parser):
-        parser.add_argument("--user", required=True, help="Usuario cuyos datos se consultan (idealmente el demo).")
+        parser.add_argument(
+            "--user", required=True, help="Usuario cuyos datos se consultan (idealmente el demo)."
+        )
 
     def handle(self, *args, **o):
         user = get_user_model().objects.filter(username=o["user"]).first()

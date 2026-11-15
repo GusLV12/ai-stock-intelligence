@@ -14,7 +14,11 @@ def _respond(request, compute):
     try:
         data = compute()
     except INPUT_ERRORS as exc:
-        msg = str(exc) if isinstance(exc, CalcError) else "Parámetros con formato inválido (revisa tipos y campos)."
+        msg = (
+            str(exc)
+            if isinstance(exc, CalcError)
+            else "Parámetros con formato inválido (revisa tipos y campos)."
+        )
         raise serializers.ValidationError({"detail": msg}) from exc
     fmt = request.query_params.get("format", "json")
     if fmt == "csv":

@@ -127,7 +127,11 @@ def preview_import(account: InvestmentAccount, content: bytes, filename: str = "
                 n, instrument = _normalize(raw, lookup)
             except ValueError as exc:
                 ImportRow.objects.create(
-                    batch=batch, row_number=number, raw=raw, status=ImportRow.Status.INVALID, errors=[str(exc)]
+                    batch=batch,
+                    row_number=number,
+                    raw=raw,
+                    status=ImportRow.Status.INVALID,
+                    errors=[str(exc)],
                 )
                 continue
             base = _fingerprint(account.id, instrument.id, n, 0)
@@ -186,7 +190,9 @@ def confirm_import(batch: ImportBatch) -> dict:
     blocking = [r for r in rows if r.status in (S.INVALID, S.DISCREPANCY)]
     if blocking:
         raise ImportError_(
-            "Hay filas inválidas o con discrepancia (" + ", ".join(str(r.row_number) for r in blocking) + "); "
+            "Hay filas inválidas o con discrepancia ("
+            + ", ".join(str(r.row_number) for r in blocking)
+            + "); "
             "corrige el archivo y vuelve a cargarlo."
         )
     result = {"created": 0, "linked": 0, "skipped_duplicates": 0}

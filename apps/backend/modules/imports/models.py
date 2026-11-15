@@ -47,9 +47,7 @@ class ImportRow(models.Model):
 
     class Meta:
         ordering = ["batch_id", "row_number"]
-        constraints = [
-            models.UniqueConstraint(fields=["batch", "row_number"], name="uniq_row_per_batch")
-        ]
+        constraints = [models.UniqueConstraint(fields=["batch", "row_number"], name="uniq_row_per_batch")]
 
 
 class ManualImportMatch(models.Model):

@@ -52,13 +52,22 @@ def _policy_dict(p: PortfolioPolicy) -> dict:
 
 class PoliciesView(APIView):
     def get(self, request):
-        return Response(plain([{**_policy_dict(p), "created_at": p.created_at} for p in PortfolioPolicy.objects.filter(user=request.user)[:50]]))
+        return Response(
+            plain(
+                [
+                    {**_policy_dict(p), "created_at": p.created_at}
+                    for p in PortfolioPolicy.objects.filter(user=request.user)[:50]
+                ]
+            )
+        )
 
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
         objective = data.get("objective", "mixed")
         if objective not in exposure.OBJECTIVES:
-            raise serializers.ValidationError({"objective": f"Debe ser uno de {', '.join(exposure.OBJECTIVES)}."})
+            raise serializers.ValidationError(
+                {"objective": f"Debe ser uno de {', '.join(exposure.OBJECTIVES)}."}
+            )
         targets = _pct_map(data.get("target_weights"), "target_weights")
         if sum(targets.values()) > 100.0001:
             raise serializers.ValidationError({"target_weights": "Los objetivos suman más de 100%."})
@@ -72,7 +81,9 @@ class PoliciesView(APIView):
             min_cash_pct=_pct(data.get("min_cash_pct"), "min_cash_pct"),
             target_weights=targets, horizon_years=int(horizon) if horizon not in (None, "") else None,
         )  # fmt: skip
-        return Response(plain({**_policy_dict(p), "created_at": p.created_at}), status=status.HTTP_201_CREATED)
+        return Response(
+            plain({**_policy_dict(p), "created_at": p.created_at}), status=status.HTTP_201_CREATED
+        )
 
 
 class ExposureView(APIView):
@@ -85,11 +96,19 @@ class ExposureView(APIView):
             if dash:
                 dash_total = Decimal(dash["market_value"]) + Decimal(dash["cash"])
                 # Solo comparable si todas las posiciones valoradas están en USD y ninguna quedó fuera.
-                comparable = not loaded["unconverted"] and all(h.currency == "USD" for h in loaded["holdings"] if h.value_base is not None)
+                comparable = not loaded["unconverted"] and all(
+                    h.currency == "USD" for h in loaded["holdings"] if h.value_base is not None
+                )
                 result["reconciliation"].update(
-                    {"dashboard_total_usd": dash_total, "difference": result["total_value_usd"] - dash_total, "comparable": comparable}
+                    {
+                        "dashboard_total_usd": dash_total,
+                        "difference": result["total_value_usd"] - dash_total,
+                        "comparable": comparable,
+                    }
                 )
         result["unpriced_positions"] = loaded["unpriced"]
         result["fx"] = loaded["fx"]
-        result["disclaimer"] = "Exposición calculada con precios observados (no tiempo real). No es asesoría de inversión."
+        result["disclaimer"] = (
+            "Exposición calculada con precios observados (no tiempo real). No es asesoría de inversión."
+        )
         return Response(plain(result))

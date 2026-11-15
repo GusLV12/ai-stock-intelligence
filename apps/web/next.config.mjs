@@ -2,6 +2,8 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://127.0.0.1:8000";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Contenedor de producción: salida autónoma mínima (la imagen web no lleva node_modules completo).
+  ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" } : {}),
   // El navegador llama a /api/* y Next lo reenvía al backend Django (sin CORS).
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` }];

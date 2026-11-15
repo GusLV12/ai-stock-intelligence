@@ -11,7 +11,9 @@ class AssistantLog(models.Model):
         UNAVAILABLE = "unavailable", "modelo no disponible"
         ERROR = "error", "error"
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assistant_logs")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assistant_logs"
+    )
     question = models.CharField(max_length=300)
     model = models.CharField(max_length=60)
     tools = models.JSONField(default=list)

@@ -83,8 +83,10 @@ def analyze(series: dict[str, list[tuple[date, float]]], weights: dict[str, floa
     pairs.sort(key=lambda p: -p["correlation"])
 
     out = {
-        "window": {"from": min((v["from"] for v in per_asset.values()), default=None),
-                   "to": max((v["to"] for v in per_asset.values()), default=None)},
+        "window": {
+            "from": min((v["from"] for v in per_asset.values()), default=None),
+            "to": max((v["to"] for v in per_asset.values()), default=None),
+        },
         "assets": per_asset,
         "correlation_matrix": matrix,
         "most_correlated_pairs": pairs[:5],
@@ -109,12 +111,16 @@ def _portfolio(rets, per_asset, weights, warnings):
         return None
     common = sorted(set.intersection(*(set(rets[t]) for t in covered)))
     if len(common) < MIN_OVERLAP:
-        warnings.append(f"Solo {len(common)} fechas comunes entre las posiciones: no se calcula la volatilidad del portafolio.")
+        warnings.append(
+            f"Solo {len(common)} fechas comunes entre las posiciones: no se calcula la volatilidad del portafolio."
+        )
         return None
     daily = [sum(w * rets[t][d] for t, w in covered.items()) for d in common]  # el efectivo aporta 0
     cov_ratio = covered_weight / total_risky if total_risky else 0.0
     if cov_ratio < 0.8:
-        warnings.append(f"Las posiciones con historial cubren {cov_ratio:.0%} del valor invertido: la volatilidad del portafolio es parcial.")
+        warnings.append(
+            f"Las posiciones con historial cubren {cov_ratio:.0%} del valor invertido: la volatilidad del portafolio es parcial."
+        )
     weighted_avg_vol = sum(w * per_asset[t]["annualized_volatility"] for t, w in covered.items())
     vol = _stdev(daily) * math.sqrt(TRADING_DAYS)
     return {

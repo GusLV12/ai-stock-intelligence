@@ -42,7 +42,13 @@ def _freshness(clean, tz_name):
         state = "reciente"
     else:
         state = "mercado_cerrado"
-    return {"state": state, "last_bar_end": last_end, "age_minutes": round(age_min, 1), "in_session": in_session, "note": DELAY_NOTE}
+    return {
+        "state": state,
+        "last_bar_end": last_end,
+        "age_minutes": round(age_min, 1),
+        "in_session": in_session,
+        "note": DELAY_NOTE,
+    }
 
 
 class IntradayView(APIView):
@@ -63,7 +69,9 @@ class IntradayView(APIView):
             data = get_provider().fetch_intraday(ticker, range_)
         except ProviderError as exc:
             code = status.HTTP_503_SERVICE_UNAVAILABLE if exc.transient else status.HTTP_404_NOT_FOUND
-            return Response({"detail": str(exc), "note": "El resto de la app sigue funcionando."}, status=code)
+            return Response(
+                {"detail": str(exc), "note": "El resto de la app sigue funcionando."}, status=code
+            )
         cleaned = intraday.clean(data["raw"], data["timezone"])
         if not cleaned["bars"]:
             return Response(plain({"ticker": ticker, "evaluable": False, "hygiene": cleaned["hygiene"],
@@ -78,12 +86,28 @@ class IntradayView(APIView):
         return Response(
             plain(
                 {
-                    "ticker": ticker, "evaluable": True, "session": cleaned["session"], "currency": data["currency"],
-                    "timezone": data["timezone"], "usable": cleaned["usable"], "missing_slots": cleaned["missing_slots"],
-                    "hygiene": cleaned["hygiene"], "bars": bars,
-                    "vwap": [{"time": b["time"], "value": round(v, 4)} for b, v in zip(bars, vw, strict=True) if v is not None],
-                    "orb": orb, "freshness": _freshness(cleaned, data["timezone"]),
-                    "note": "Análisis descriptivo; no es una recomendación." + (" La sesión tiene velas faltantes: no se considera usable." if not cleaned["usable"] else ""),
+                    "ticker": ticker,
+                    "evaluable": True,
+                    "session": cleaned["session"],
+                    "currency": data["currency"],
+                    "timezone": data["timezone"],
+                    "usable": cleaned["usable"],
+                    "missing_slots": cleaned["missing_slots"],
+                    "hygiene": cleaned["hygiene"],
+                    "bars": bars,
+                    "vwap": [
+                        {"time": b["time"], "value": round(v, 4)}
+                        for b, v in zip(bars, vw, strict=True)
+                        if v is not None
+                    ],
+                    "orb": orb,
+                    "freshness": _freshness(cleaned, data["timezone"]),
+                    "note": "Análisis descriptivo; no es una recomendación."
+                    + (
+                        " La sesión tiene velas faltantes: no se considera usable."
+                        if not cleaned["usable"]
+                        else ""
+                    ),
                 }
             )
         )

@@ -65,4 +65,7 @@ def test_no_evaluable_sin_precio_o_con_periodo_corto(ctx):
     acc, ins = ctx
     record_buy(account=acc, instrument=ins, quantity=D(1), price=D(10), executed_at=T0)
     assert "sin precio" in money_weighted_return([acc.id], "USD", None, T0, False)["reason"]
-    assert "Periodo menor" in money_weighted_return([acc.id], "USD", D(11), T0 + timedelta(days=5), True)["reason"]
+    assert (
+        "Periodo menor"
+        in money_weighted_return([acc.id], "USD", D(11), T0 + timedelta(days=5), True)["reason"]
+    )

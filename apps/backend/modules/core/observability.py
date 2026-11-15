@@ -16,11 +16,12 @@ from datetime import UTC, datetime
 from django.db import OperationalError, connection
 from django.db.migrations.executor import MigrationExecutor
 from django.http import JsonResponse
+from django.views.decorators.http import require_safe
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 _VALID_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 
-_SECRET_KEYS = r"(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|authorization|cookie|csrfmiddlewaretoken|sessionid|csrftoken|access[_-]?key)"
+_SECRET_KEYS = r"(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|authorization|cookie|csrfmiddlewaretoken|sessionid|csrftoken|access[_-]?key)"  # nosec B105 - lista de nombres a ocultar, no un secreto
 _KV = re.compile(rf"(?i)([\w-]*{_SECRET_KEYS}[\w-]*[\"']?\s*[:=]\s*)(?:Bearer\s+)?[\"']?[^\s,;&\"'}}\]]+")
 _BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}")
 _LONG_HEX = re.compile(r"\b[A-Fa-f0-9]{40,}\b")
@@ -71,6 +72,7 @@ class RequestIdMiddleware:
         return response
 
 
+@require_safe
 def ready(request):
     """Lista para recibir tráfico: la base responde y no hay migraciones pendientes."""
     checks = {"database": False, "migrations": False}

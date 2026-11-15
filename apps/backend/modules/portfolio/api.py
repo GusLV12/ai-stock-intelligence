@@ -59,7 +59,9 @@ class TransactionsView(APIView):
             )
         except LedgerError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
-        return Response(TransactionSerializer(tx, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        return Response(
+            TransactionSerializer(tx, context={"request": request}).data, status=status.HTTP_201_CREATED
+        )
 
 
 def _positions_for(user, account_id=None, account_ids=None):

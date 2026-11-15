@@ -40,14 +40,20 @@ def propose(
     warnings = [TAX_NOTE, "Propuesta teórica: no se envía ninguna orden."]
 
     by_ticker = {h.ticker: h for h in holdings if h.asset_class != "CASH"}
-    cash_now = sum((h.value_base for h in holdings if h.asset_class == "CASH" and h.value_base is not None), ZERO)
-    tradable = {t: h for t, h in by_ticker.items() if h.value_base is not None and h.price and h.currency == "USD"}
+    cash_now = sum(
+        (h.value_base for h in holdings if h.asset_class == "CASH" and h.value_base is not None), ZERO
+    )
+    tradable = {
+        t: h for t, h in by_ticker.items() if h.value_base is not None and h.price and h.currency == "USD"
+    }
     untradable = [t for t, h in by_ticker.items() if t not in tradable]
     if untradable:
         warnings.append(f"Sin precio o fuera de USD, se tratan como fijas: {', '.join(sorted(untradable))}.")
     unknown = [t for t in targets_pct if t not in tradable]
     if unknown:
-        warnings.append(f"Objetivos ignorados (no tienes posición valorada en USD): {', '.join(sorted(unknown))}.")
+        warnings.append(
+            f"Objetivos ignorados (no tienes posición valorada en USD): {', '.join(sorted(unknown))}."
+        )
     targets = {t: p for t, p in targets_pct.items() if t in tradable}
 
     fixed = {t: h.value_base for t, h in by_ticker.items() if h.value_base is not None and t not in targets}
@@ -67,7 +73,9 @@ def propose(
     available = contribution + cash_now - cash_target + sum(sells.values(), ZERO)
     if available < 0:
         available = ZERO
-        warnings.append("El efectivo disponible es menor que el objetivo de efectivo: no hay fondos para comprar.")
+        warnings.append(
+            "El efectivo disponible es menor que el objetivo de efectivo: no hay fondos para comprar."
+        )
     need = sum(buys.values(), ZERO)
     # Comisión por operación: se descuenta del efectivo disponible (aprox., sobre las operaciones propuestas).
     n_trades = len(buys) + len(sells)
@@ -120,11 +128,14 @@ def propose(
         "allow_sells": allow_sells,
         "trades": trades,
         "summary": {
-            "buys_usd": spent, "sells_usd": received, "estimated_commissions_usd": commission_per_trade * real_trades,
-            "cash_before_usd": cash_now, "cash_after_usd": cash_after, "cash_target_usd": cash_target,
+            "buys_usd": spent,
+            "sells_usd": received,
+            "estimated_commissions_usd": commission_per_trade * real_trades,
+            "cash_before_usd": cash_now,
+            "cash_after_usd": cash_after,
+            "cash_target_usd": cash_target,
             "max_residual_drift_pct": max(drifts) if drifts else ZERO,
         },
         "warnings": warnings,
         "disclaimer": "Propuesta teórica con precios observados (no tiempo real); no es una orden ni asesoría de inversión.",
     }
-

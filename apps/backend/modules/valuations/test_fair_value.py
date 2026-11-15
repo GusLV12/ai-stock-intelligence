@@ -13,7 +13,12 @@ DCF = {
 
 
 def run(**kw):
-    base = {"instrument_class": "STOCK", "market_price": 80, "currency": "USD", "financials_as_of": "2999-01-01"}
+    base = {
+        "instrument_class": "STOCK",
+        "market_price": 80,
+        "currency": "USD",
+        "financials_as_of": "2999-01-01",
+    }
     return asi_fair_value_v1({**base, **kw})
 
 

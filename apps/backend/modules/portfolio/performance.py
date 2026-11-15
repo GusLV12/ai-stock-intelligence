@@ -41,7 +41,9 @@ def xirr(flows: list[tuple[datetime, float]]) -> float | None:
     return (lo + hi) / 2
 
 
-def money_weighted_return(account_ids, currency: str, terminal_value: Decimal | None, terminal_at, priced_all: bool):
+def money_weighted_return(
+    account_ids, currency: str, terminal_value: Decimal | None, terminal_at, priced_all: bool
+):
     """Devuelve {'xirr_pct': str|None, 'reason': str|None} para las cuentas y moneda dados."""
     txs = list(
         Transaction.objects.filter(

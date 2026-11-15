@@ -69,7 +69,11 @@ def analyze(bars: list[dict], overrides: dict | None = None) -> dict:
     # 1. Ruptura de máximos de N días
     rule = f"Cierre > máximo de los {p['breakout_days']} cierres anteriores."
     if n < p["breakout_days"] + 1:
-        signals.append(_unavailable("breakout", "Ruptura de máximo", rule, f"Se necesitan {p['breakout_days'] + 1} velas."))
+        signals.append(
+            _unavailable(
+                "breakout", "Ruptura de máximo", rule, f"Se necesitan {p['breakout_days'] + 1} velas."
+            )
+        )
     else:
         ref = max(closes[-p["breakout_days"] - 1 : -1])
         signals.append(_signal("breakout", "Ruptura de máximo", rule, last > ref,
@@ -79,7 +83,9 @@ def analyze(bars: list[dict], overrides: dict | None = None) -> dict:
     rule = f"Cierre previo < SMA({p['ma_days']}) previa y cierre actual > SMA actual."
     sma = ind.sma(closes, p["ma_days"])
     if n < p["ma_days"] + 1:
-        signals.append(_unavailable("reclaim_ma", "Recupera la media", rule, f"Se necesitan {p['ma_days'] + 1} velas."))
+        signals.append(
+            _unavailable("reclaim_ma", "Recupera la media", rule, f"Se necesitan {p['ma_days'] + 1} velas.")
+        )
     else:
         signals.append(_signal("reclaim_ma", "Recupera la media", rule, prev < sma[-2] and last > sma[-1],
                                [{"text": "Cierre previo / SMA previa", "value": [prev, sma[-2]]},
@@ -90,10 +96,27 @@ def analyze(bars: list[dict], overrides: dict | None = None) -> dict:
     rule_os = f"RSI({p['rsi_days']}) < {p['rsi_oversold']:g}."
     rule_ob = f"RSI previo < {p['rsi_oversold']:g} y cierre actual > cierre previo."
     if rsi[-1] is None or rsi[-2] is None:
-        signals.append(_unavailable("oversold", "Sobreventa", rule_os, f"Se necesitan {p['rsi_days'] + 2} velas."))
-        signals.append(_unavailable("oversold_bounce", "Rebote desde sobreventa", rule_ob, f"Se necesitan {p['rsi_days'] + 2} velas."))
+        signals.append(
+            _unavailable("oversold", "Sobreventa", rule_os, f"Se necesitan {p['rsi_days'] + 2} velas.")
+        )
+        signals.append(
+            _unavailable(
+                "oversold_bounce",
+                "Rebote desde sobreventa",
+                rule_ob,
+                f"Se necesitan {p['rsi_days'] + 2} velas.",
+            )
+        )
     else:
-        signals.append(_signal("oversold", "Sobreventa", rule_os, rsi[-1] < p["rsi_oversold"], [{"text": "RSI", "value": rsi[-1]}]))
+        signals.append(
+            _signal(
+                "oversold",
+                "Sobreventa",
+                rule_os,
+                rsi[-1] < p["rsi_oversold"],
+                [{"text": "RSI", "value": rsi[-1]}],
+            )
+        )
         signals.append(_signal("oversold_bounce", "Rebote desde sobreventa", rule_ob, rsi[-2] < p["rsi_oversold"] and last > prev,
                                [{"text": "RSI previo", "value": rsi[-2]}, {"text": "Cierre previo / actual", "value": [prev, last]}]))  # fmt: skip
 
@@ -101,7 +124,9 @@ def analyze(bars: list[dict], overrides: dict | None = None) -> dict:
     rule = f"Cierre > EMA({p['ema_fast']}) > EMA({p['ema_slow']})."
     ef, es = ind.ema(closes, p["ema_fast"]), ind.ema(closes, p["ema_slow"])
     if es[-1] is None:
-        signals.append(_unavailable("trend_up", "Tendencia alcista", rule, f"Se necesitan {p['ema_slow']} velas."))
+        signals.append(
+            _unavailable("trend_up", "Tendencia alcista", rule, f"Se necesitan {p['ema_slow']} velas.")
+        )
     else:
         signals.append(_signal("trend_up", "Tendencia alcista", rule, last > ef[-1] > es[-1],
                                [{"text": "Cierre / EMA rápida / EMA lenta", "value": [last, ef[-1], es[-1]]}]))  # fmt: skip
@@ -110,7 +135,9 @@ def analyze(bars: list[dict], overrides: dict | None = None) -> dict:
     rule = "Histograma MACD(12,26,9) previo <= 0 y actual > 0."
     hist = ind.macd(closes)["histogram"]
     if hist[-1] is None or hist[-2] is None:
-        signals.append(_unavailable("macd_bull_cross", "Cruce alcista del MACD", rule, "Se necesitan 36 velas."))
+        signals.append(
+            _unavailable("macd_bull_cross", "Cruce alcista del MACD", rule, "Se necesitan 36 velas.")
+        )
     else:
         signals.append(_signal("macd_bull_cross", "Cruce alcista del MACD", rule, hist[-2] <= 0 < hist[-1],
                                [{"text": "Histograma previo / actual", "value": [hist[-2], hist[-1]]}]))  # fmt: skip
@@ -122,9 +149,24 @@ def analyze(bars: list[dict], overrides: dict | None = None) -> dict:
     else:
         rv = ind.relative_volume(vols, p["rvol_days"])
         if rv[-1] is None:
-            signals.append(_unavailable("volume_spike", "Volumen inusual", rule, f"Se necesitan {p['rvol_days'] + 1} velas con volumen."))
+            signals.append(
+                _unavailable(
+                    "volume_spike",
+                    "Volumen inusual",
+                    rule,
+                    f"Se necesitan {p['rvol_days'] + 1} velas con volumen.",
+                )
+            )
         else:
-            signals.append(_signal("volume_spike", "Volumen inusual", rule, rv[-1] >= p["rvol_threshold"], [{"text": "RVOL", "value": rv[-1]}]))
+            signals.append(
+                _signal(
+                    "volume_spike",
+                    "Volumen inusual",
+                    rule,
+                    rv[-1] >= p["rvol_threshold"],
+                    [{"text": "RVOL", "value": rv[-1]}],
+                )
+            )
 
     # Contexto: ATR y niveles (necesitan máximos y mínimos)
     context = {"last_close": last, "last_date": bars[-1]["date"]}
@@ -143,9 +185,20 @@ def analyze(bars: list[dict], overrides: dict | None = None) -> dict:
             plan = {"side": "BUY", "entry": last, "stop": last - risk, "target": last + p["reward_r"] * risk,
                     "basis": f"Stop a {p['stop_atr']:g}×ATR y objetivo a {p['reward_r']:g}R. Aritmética de ejemplo, no una recomendación."}  # fmt: skip
         else:
-            signals.append(_unavailable("near_level", "Cerca de un nivel", "Cierre cerca de un nivel.", f"Se necesitan {p['atr_days']} velas."))
+            signals.append(
+                _unavailable(
+                    "near_level",
+                    "Cerca de un nivel",
+                    "Cierre cerca de un nivel.",
+                    f"Se necesitan {p['atr_days']} velas.",
+                )
+            )
     else:
-        signals.append(_unavailable("near_level", "Cerca de un nivel", "Cierre cerca de un nivel.", "Faltan máximos y mínimos."))
+        signals.append(
+            _unavailable(
+                "near_level", "Cerca de un nivel", "Cierre cerca de un nivel.", "Faltan máximos y mínimos."
+            )
+        )
     context["rsi"] = rsi[-1]
     context["ema_fast"], context["ema_slow"], context["sma"] = ef[-1], es[-1], sma[-1]
     return {"as_of": bars[-1]["date"], "bars": n, "params": p, "context": context, "signals": signals,

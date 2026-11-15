@@ -29,19 +29,29 @@ def ctx(db):
 
 def test_crea_tesis_con_precio_y_procedencia_del_momento(ctx):
     c, _, ins = ctx
-    r = c.post("/api/v1/portfolio/theses", {**BODY, "instrument": ins.id, "sources": ["10-K 2025"]}, format="json")
+    r = c.post(
+        "/api/v1/portfolio/theses", {**BODY, "instrument": ins.id, "sources": ["10-K 2025"]}, format="json"
+    )
     assert r.status_code == 201, r.content
     d = r.json()
     assert d["price"] == "100.000000" and d["price_source"]["provider"] == "MANUAL" and d["status"] == "OPEN"
     got = c.get(f"/api/v1/portfolio/theses/{d['id']}").json()
-    assert got["invalidation"].startswith("Margen bruto") and got["sources"] == ["10-K 2025"] and got["follow_ups"] == []
+    assert (
+        got["invalidation"].startswith("Margen bruto")
+        and got["sources"] == ["10-K 2025"]
+        and got["follow_ups"] == []
+    )
 
 
 def test_seguimiento_registra_el_precio_de_ese_momento_y_el_cambio(ctx):
     c, _, ins = ctx
     tid = c.post("/api/v1/portfolio/theses", {**BODY, "instrument": ins.id}, format="json").json()["id"]
     record_price(ins, D(125), "MANUAL", datetime(2026, 11, 14, tzinfo=UTC))
-    r = c.post(f"/api/v1/portfolio/theses/{tid}/follow-ups", {"status": "CONFIRMED", "note": "Resultados mejores."}, format="json")
+    r = c.post(
+        f"/api/v1/portfolio/theses/{tid}/follow-ups",
+        {"status": "CONFIRMED", "note": "Resultados mejores."},
+        format="json",
+    )
     assert r.status_code == 201, r.content
     assert r.json()["price"] == "125.000000" and r.json()["change_since_thesis"] == "0.250000"
     d = c.get(f"/api/v1/portfolio/theses/{tid}").json()
@@ -55,9 +65,16 @@ def test_el_estado_es_el_del_ultimo_seguimiento_y_se_conserva_el_historial(ctx):
     c, _, ins = ctx
     tid = c.post("/api/v1/portfolio/theses", {**BODY, "instrument": ins.id}, format="json").json()["id"]
     for st in ("CONFIRMED", "INVALIDATED"):
-        c.post(f"/api/v1/portfolio/theses/{tid}/follow-ups", {"status": st, "note": f"estado {st}"}, format="json")
+        c.post(
+            f"/api/v1/portfolio/theses/{tid}/follow-ups",
+            {"status": st, "note": f"estado {st}"},
+            format="json",
+        )
     d = c.get(f"/api/v1/portfolio/theses/{tid}").json()
-    assert d["status"] == "INVALIDATED" and [f["status"] for f in d["follow_ups"]] == ["CONFIRMED", "INVALIDATED"]
+    assert d["status"] == "INVALIDATED" and [f["status"] for f in d["follow_ups"]] == [
+        "CONFIRMED",
+        "INVALIDATED",
+    ]
 
 
 def test_tesis_y_seguimientos_son_inmutables(ctx):
@@ -84,14 +101,32 @@ def test_valoracion_vinculada_debe_ser_propia(ctx):
     mine = Valuation.objects.create(user=user, model_version="valuation-v1", inputs={}, output={})
     other_user = get_user_model().objects.create_user("beto", password="x")
     theirs = Valuation.objects.create(user=other_user, model_version="valuation-v1", inputs={}, output={})
-    assert c.post("/api/v1/portfolio/theses", {**BODY, "valuation_id": mine.id}, format="json").status_code == 201
-    assert c.post("/api/v1/portfolio/theses", {**BODY, "valuation_id": theirs.id}, format="json").status_code == 400
+    assert (
+        c.post("/api/v1/portfolio/theses", {**BODY, "valuation_id": mine.id}, format="json").status_code
+        == 201
+    )
+    assert (
+        c.post("/api/v1/portfolio/theses", {**BODY, "valuation_id": theirs.id}, format="json").status_code
+        == 400
+    )
 
 
 @pytest.mark.parametrize(
     "over",
-    [{"title": ""}, {"thesis": "   "}, {"risks": None}, {"invalidation": ""}, {"title": "x" * 151}, {"thesis": "x" * 5001},
-     {"strategy": "otra"}, {"instrument": 99999}, {"sources": "no"}, {"sources": ["x"] * 21}, {"sources": [5]}, {"thesis": 5}],
+    [
+        {"title": ""},
+        {"thesis": "   "},
+        {"risks": None},
+        {"invalidation": ""},
+        {"title": "x" * 151},
+        {"thesis": "x" * 5001},
+        {"strategy": "otra"},
+        {"instrument": 99999},
+        {"sources": "no"},
+        {"sources": ["x"] * 21},
+        {"sources": [5]},
+        {"thesis": 5},
+    ],
 )
 def test_validaciones(ctx, over):
     c, _, _ = ctx
@@ -104,11 +139,21 @@ def test_validaciones(ctx, over):
 def test_seguimiento_invalido_y_aislamiento(ctx):
     c, _, _ = ctx
     tid = c.post("/api/v1/portfolio/theses", BODY, format="json").json()["id"]
-    assert c.post(f"/api/v1/portfolio/theses/{tid}/follow-ups", {"status": "RARO", "note": "x"}, format="json").status_code == 400
-    assert c.post(f"/api/v1/portfolio/theses/{tid}/follow-ups", {"note": ""}, format="json").status_code == 400
+    assert (
+        c.post(
+            f"/api/v1/portfolio/theses/{tid}/follow-ups", {"status": "RARO", "note": "x"}, format="json"
+        ).status_code
+        == 400
+    )
+    assert (
+        c.post(f"/api/v1/portfolio/theses/{tid}/follow-ups", {"note": ""}, format="json").status_code == 400
+    )
     otro = APIClient()
     otro.force_authenticate(get_user_model().objects.create_user("beto", password="x"))
     assert otro.get(f"/api/v1/portfolio/theses/{tid}").status_code == 404
-    assert otro.post(f"/api/v1/portfolio/theses/{tid}/follow-ups", {"note": "x"}, format="json").status_code == 404
+    assert (
+        otro.post(f"/api/v1/portfolio/theses/{tid}/follow-ups", {"note": "x"}, format="json").status_code
+        == 404
+    )
     assert otro.get("/api/v1/portfolio/theses").json() == []
     assert APIClient().get("/api/v1/portfolio/theses").status_code in (401, 403)

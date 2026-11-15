@@ -15,4 +15,6 @@ class Command(BaseCommand):
         fired = evaluate(active)
         self.stdout.write(f"Alertas evaluadas: {len(active)} · disparadas: {len(fired)}.")
         for a in fired:
-            self.stdout.write(f"  [{a.user.get_username()}] {a.instrument.name} {a.kind} {a.signal_id or a.threshold}: {a.triggered_detail}")
+            self.stdout.write(
+                f"  [{a.user.get_username()}] {a.instrument.name} {a.kind} {a.signal_id or a.threshold}: {a.triggered_detail}"
+            )

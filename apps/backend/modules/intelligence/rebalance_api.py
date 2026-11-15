@@ -50,7 +50,9 @@ class RebalancePreviewView(APIView):
         if raw in (None, {}):
             policy = active_policy(request.user)
             if policy is None or not policy.target_weights:
-                raise serializers.ValidationError({"targets": "Indica pesos objetivo o define una política con target_weights."})
+                raise serializers.ValidationError(
+                    {"targets": "Indica pesos objetivo o define una política con target_weights."}
+                )
             raw, source = policy.target_weights, f"política «{policy.name}»"
         try:
             result = propose(

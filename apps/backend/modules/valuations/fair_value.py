@@ -11,7 +11,9 @@ from .engine import ValuationError
 MODEL_VERSION = "valuation-v1"
 COMPATIBLE_RATIO = Decimal("1.5")  # máx/mín entre métodos para hablar de un valor central
 STALE_MONTHS = 15
-DISCLAIMER = "Escenarios ilustrativos condicionados a los supuestos; no es predicción ni asesoría de inversión."
+DISCLAIMER = (
+    "Escenarios ilustrativos condicionados a los supuestos; no es predicción ni asesoría de inversión."
+)
 
 CLASSES = {"STOCK", "ADR", "ETF", "CRYPTO"}
 SECTORS = {"non_financial", "bank"}
@@ -131,7 +133,12 @@ def run_relative(blocks, asset_class: str, sector: str) -> list[dict]:
             out.append(_blocked(reason, f"relative:{method}"))
             continue
         if sector == "bank" and method not in BANK_ALLOWED_REL:
-            out.append(_blocked("Para bancos usa P/E o P/B; los múltiplos basados en EV/ventas no aplican.", f"relative:{method}"))
+            out.append(
+                _blocked(
+                    "Para bancos usa P/E o P/B; los múltiplos basados en EV/ventas no aplican.",
+                    f"relative:{method}",
+                )
+            )
             continue
         res = engine.relative_value(
             method, D(b.get("metric"), "metric"), _dec_list(b.get("multiples"), "multiples"),
@@ -183,7 +190,9 @@ def asi_fair_value_v1(inputs: dict) -> dict:
         try:
             months = (date.today() - date.fromisoformat(str(dq))).days / 30.4
             if months > STALE_MONTHS:
-                warnings.append(f"Los estados financieros tienen {months:.0f} meses: datos posiblemente desactualizados.")
+                warnings.append(
+                    f"Los estados financieros tienen {months:.0f} meses: datos posiblemente desactualizados."
+                )
         except ValueError:
             raise ValuationError("financials_as_of debe ser una fecha ISO (YYYY-MM-DD).") from None
     else:
@@ -219,7 +228,10 @@ def asi_fair_value_v1(inputs: dict) -> dict:
         result["margin_of_safety_base"], result["upside_to_value"] = None, None
     else:
         m = engine.margin_of_safety(central, price)
-        result["margin_of_safety_base"], result["upside_to_value"] = m["margin_of_safety"], m["upside_to_value"]
+        result["margin_of_safety_base"], result["upside_to_value"] = (
+            m["margin_of_safety"],
+            m["upside_to_value"],
+        )
 
     dcf_m = next((m for m in applicable if m["method"] == "dcf"), None)
     if dcf_m:

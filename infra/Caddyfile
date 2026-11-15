@@ -1,0 +1,58 @@
+# Proxy inverso con HTTPS automático (Let's Encrypt). Solo Caddy publica puertos; todo lo demás vive en la red interna.
+# Variables: APP_DOMAIN (p. ej. asi.tudominio.com) y MCP_DOMAIN (p. ej. mcp.tudominio.com).
+{
+	# Sin telemetría ni páginas de administración de Caddy expuestas.
+	admin off
+}
+
+(seguridad) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+	}
+}
+
+{$APP_DOMAIN} {
+	import seguridad
+	encode zstd gzip
+
+	# CSP pragmática para Next.js (necesita scripts en línea para hidratar). Endurecer con nonces es un paso posterior.
+	header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+	# El panel /admin de Django no se publica por este dominio.
+	@admin path /admin /admin/*
+	respond @admin 404
+
+	request_body {
+		max_size 20MB
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+# MCP remoto (Streamable HTTP + OAuth): subdominio propio para que el recurso tenga su propia audiencia.
+{$MCP_DOMAIN} {
+	import seguridad
+	request_body {
+		max_size 1MB
+	}
+	handle /mcp* {
+		reverse_proxy mcp:8765
+	}
+	handle /.well-known/oauth-protected-resource* {
+		reverse_proxy mcp:8765
+	}
+	handle {
+		respond 404
+	}
+}
