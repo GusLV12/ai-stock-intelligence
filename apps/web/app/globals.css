@@ -114,3 +114,11 @@ tbody th { font-weight: 700; }
 .neg { color: var(--neg); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .empty p { color: var(--muted); margin: 0; }
+
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+a.btn { display: inline-block; padding: 10px 16px; border-radius: 6px; font-weight: 600; text-decoration: none; color: var(--fg); border: 1px solid var(--line); }
+.src { display: block; color: var(--muted); font-size: 0.7rem; }
+.stat .sub { max-width: 28ch; }
+select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.pending-list { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.8rem; }
+.row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

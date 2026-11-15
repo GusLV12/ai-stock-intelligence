@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, ApiError, fmtMoney, fmtSigned, signClass } from "./lib/api";
@@ -61,7 +62,8 @@ export default function Dashboard() {
   const { data } = state;
   const cur = Object.keys(data.totals_by_currency)[0];
   const t = cur ? data.totals_by_currency[cur] : null;
-  const stale = data.prices.age_hours != null && data.prices.age_hours > STALE_HOURS;
+  const stale = data.prices.oldest_age_hours != null && data.prices.oldest_age_hours > STALE_HOURS;
+  const perf = cur ? data.performance?.[cur] : null;
 
   return (
     <main className="wrap">
@@ -70,14 +72,18 @@ export default function Dashboard() {
           <h1>Mi portafolio</h1>
           <p className="muted">Sesión de {user?.username}</p>
         </div>
-        <button className="ghost" onClick={logout}>Cerrar sesión</button>
+        <nav className="actions" aria-label="Principal">
+          <Link className="btn ghost" href="/ventas">Ventas por ejercicio</Link>
+          <button className="ghost" onClick={logout}>Cerrar sesión</button>
+        </nav>
       </header>
 
-      {data.prices.as_of && (
+      {data.prices.newest_at && (
         <p className={`notice ${stale ? "warn" : ""}`} role="status">
-          Precios: {data.prices.source} · {new Date(data.prices.as_of).toLocaleString("es-MX")}
-          {" "}(hace {data.prices.age_hours} h){stale ? " — desactualizados" : ""}.
-          {data.unpriced_positions > 0 && ` ${data.unpriced_positions} posición(es) sin precio en el reporte.`}
+          Precios de {data.prices.providers.join(", ")} (no son tiempo real): el más reciente es del{" "}
+          {new Date(data.prices.newest_at).toLocaleString("es-MX")} y el más antiguo tiene{" "}
+          {data.prices.oldest_age_hours} h{stale ? " — desactualizados" : ""}.
+          {data.unpriced_positions > 0 && ` ${data.unpriced_positions} posición(es) sin precio.`}
         </p>
       )}
 
@@ -99,6 +105,21 @@ export default function Dashboard() {
             />
             <Stat label="Ganancia realizada" value={fmtSigned(t.realized_pnl)} tone={signClass(t.realized_pnl)} />
             <Stat label="Efectivo" value={fmtMoney(t.cash, cur)} />
+            {data.fx && (
+              <Stat
+                label="Total en MXN (referencia)"
+                value={fmtMoney(data.fx.total_value_mxn, "MXN")}
+                sub={`${data.fx.pair} ${data.fx.rate} · ${data.fx.provider}`}
+              />
+            )}
+            {perf && (
+              <Stat
+                label="Rendimiento anual (XIRR)"
+                value={perf.xirr_pct != null ? fmtSigned(perf.xirr_pct, "%") : "No evaluable"}
+                sub={perf.reason}
+                tone={perf.xirr_pct != null ? signClass(perf.xirr_pct) : undefined}
+              />
+            )}
           </section>
 
           <div className="tablewrap">
@@ -122,7 +143,12 @@ export default function Dashboard() {
                     <th scope="row">{p.ticker}</th>
                     <td className="num">{p.quantity}</td>
                     <td className="num">{fmtMoney(p.average_cost, p.currency)}</td>
-                    <td className="num">{fmtMoney(p.market_price, p.currency)}</td>
+                    <td className="num">
+                      {fmtMoney(p.market_price, p.currency)}
+                      {p.price_provider && (
+                        <small className="src">{p.price_provider} · {p.price_age_hours} h</small>
+                      )}
+                    </td>
                     <td className="num">{fmtMoney(p.market_value, p.currency)}</td>
                     <td className={`num ${signClass(p.unrealized_pnl)}`}>{fmtSigned(p.unrealized_pnl)}</td>
                     <td className={`num ${signClass(p.unrealized_pct)}`}>{fmtSigned(p.unrealized_pct, "%")}</td>
