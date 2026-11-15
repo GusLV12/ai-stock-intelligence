@@ -84,6 +84,10 @@ class OverviewView(APIView):
 class ExperimentsView(APIView):
     throttle_classes = [QuantThrottle]
 
+    def get_throttles(self):
+        # Solo entrenar es costoso: listar experimentos (al abrir la pantalla) no debe gastar el cupo.
+        return super().get_throttles() if self.request.method == "POST" else []
+
     def get(self, request):
         return Response(plain([_summary(e) for e in QuantExperiment.objects.filter(user=request.user)[:100]]))
 

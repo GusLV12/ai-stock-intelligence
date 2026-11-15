@@ -199,6 +199,11 @@ def test_limite_de_frecuencia(ctx):
     assert 429 in codes
 
 
+def test_listar_experimentos_no_gasta_el_cupo_de_entrenamiento(ctx):
+    c, _ = ctx
+    assert all(c.get(f"{BASE}/experiments").status_code == 200 for _ in range(15))
+
+
 def test_se_prefiere_un_solo_proveedor_por_instrumento(ctx):
     ids = sembrar(n_names=6, n=100)
     ins = Instrument.objects.get(pk=ids[0])
