@@ -67,7 +67,7 @@ Comandos de gestión útiles: `refresh_market_data`, `refresh_price_history --ra
 ## Estado (2026-11-15)
 
 Etapas 0–12 con trabajo entregado. Pendiente:
-- Etapa 0: pruebas e2e con Playwright, fixtures, guía para segunda PC.
+- Etapa 0 hecha: e2e con Playwright en `tests/e2e` (`npm test`, base temporal ficticia, login 1 vez por el límite 5/min) y `docs/runbooks/segunda-pc.md`. Faltan fixtures de datos para pruebas financieras.
 - Lectores PDF de GBM/Mercado Pago (requieren documentos reales).
 - Ingesta SEC EDGAR (requiere contacto para User-Agent; no usar el email del usuario sin su aprobación).
 - Pruebas en vivo con Twelve Data/Banxico (claves del usuario).
