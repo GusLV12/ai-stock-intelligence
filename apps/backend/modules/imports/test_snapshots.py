@@ -135,3 +135,28 @@ def test_solo_cuentas_gbm(db):
     mp = InvestmentAccount.objects.create(owner=user, name="MP", broker="MERCADO_PAGO")
     with pytest.raises(ImportError_, match="GBM"):
         import_snapshot(mp, make_xlsx(ROWS), as_of=AS_OF)
+
+
+def test_api_snapshot_conciliacion_y_apertura(account):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from rest_framework.test import APIClient
+
+    client = APIClient()
+    client.force_authenticate(account.owner)
+    f = SimpleUploadedFile("App_GBM_Detalle_Portafolio_USA_1794613125783.xlsx", make_xlsx(ROWS))
+    r = client.post("/api/v1/imports/positions", {"account": account.id, "file": f}, format="multipart")
+    assert r.status_code == 201, r.content
+    data = r.json()
+    assert data["as_of"].startswith("2026-11-13T23:38:45")  # tomada del nombre del archivo
+    assert data["summary"] == {"falta_en_libro": 2} and data["cash"].startswith("0.01")
+    sid = data["id"]
+
+    r = client.post(f"/api/v1/snapshots/{sid}/opening-balances")
+    assert r.status_code == 200 and sorted(r.json()["result"]["created"]) == ["AAA", "BBB"]
+    assert r.json()["summary"] == {"ok": 2}
+    assert client.post(f"/api/v1/snapshots/{sid}/opening-balances").status_code == 400
+
+    otro = APIClient()
+    otro.force_authenticate(get_user_model().objects.create_user("otro", password="x"))
+    assert otro.get(f"/api/v1/snapshots/{sid}/reconciliation").status_code == 404
+    assert otro.post(f"/api/v1/snapshots/{sid}/opening-balances").status_code == 404
