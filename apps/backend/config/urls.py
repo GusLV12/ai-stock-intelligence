@@ -4,6 +4,7 @@ from rest_framework.routers import SimpleRouter
 
 from modules.accounts.api import AccountViewSet
 from modules.assistant.api import ChatView
+from modules.calculators.api import CagrView, TargetBuyPriceView
 from modules.imports.api import (
     ExportView,
     ImportConfirmView,
@@ -40,6 +41,8 @@ urlpatterns = [
     path("api/v1/portfolio/sales", SalesView.as_view(), name="sales"),
     path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
     path("api/v1/tax/years/<int:year>/sales", TaxYearSalesView.as_view(), name="tax-sales"),
+    path("api/v1/calculators/cagr", CagrView.as_view(), name="calc-cagr"),
+    path("api/v1/calculators/target-buy-price", TargetBuyPriceView.as_view(), name="calc-target-price"),
     path("api/v1/valuations/fair-value", FairValueView.as_view(), name="fair-value"),
     path("api/v1/valuations/dcf", DcfView.as_view(), name="valuation-dcf"),
     path("api/v1/valuations/reverse-dcf", ReverseDcfView.as_view(), name="valuation-reverse-dcf"),

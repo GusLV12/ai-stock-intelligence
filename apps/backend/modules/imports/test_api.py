@@ -80,3 +80,10 @@ def test_sin_archivo_y_csv_malo(ctx):
     client, acc = ctx
     assert client.post("/api/v1/imports", {"account": acc.id}, format="multipart").status_code == 400
     assert upload(client, acc, "col1,col2\n1,2\n").status_code == 400
+
+
+def test_exportacion_csv_con_formato_explicito(ctx):
+    client, acc = ctx
+    client.post(f"/api/v1/imports/{upload(client, acc).json()['id']}/confirm")
+    r = client.get(f"/api/v1/exports?account={acc.id}&format=csv")
+    assert r.status_code == 200 and r["Content-Type"].startswith("text/csv")

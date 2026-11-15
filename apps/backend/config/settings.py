@@ -119,6 +119,8 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_THROTTLE_RATES": {"login": "5/min", "assistant": "10/min"},
+    # Las vistas de exportación interpretan ?format= (csv/json) ellas mismas; DRF lo usaría para elegir renderizador.
+    "URL_FORMAT_OVERRIDE": None,
 }
 
 # Sesión y cookies: HttpOnly para la sesión; en producción exigir HTTPS.
