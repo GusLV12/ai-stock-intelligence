@@ -86,7 +86,7 @@ def test_cada_respuesta_trae_un_id_y_se_respeta_uno_valido():
 @pytest.mark.django_db
 def test_health_y_ready_no_piden_sesion_ni_revelan_datos():
     c = Client()
-    assert c.get("/api/v1/health").json() == {"status": "ok"}
+    assert c.get("/api/v1/health").json() == {"status": "ok", "database": "ok"}
     r = c.get("/api/v1/ready")
     assert r.status_code == 200 and r.json() == {
         "status": "ready",

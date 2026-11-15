@@ -4,7 +4,7 @@
   en todos los registros de esa petición.
 - Los registros nunca deben contener secretos: un filtro enmascara contraseñas, tokens, claves, cookies y cabeceras de
   autorización aunque alguien los escriba por error en un mensaje.
-- `/api/v1/health` (viveza) y `/api/v1/ready` (base de datos y migraciones) no exigen sesión y no revelan datos."""
+- `/api/v1/health` (viveza, en modules.core.views) y `/api/v1/ready` (base de datos y migraciones) no exigen sesión y no revelan datos."""
 
 import contextvars
 import json
@@ -69,10 +69,6 @@ class RequestIdMiddleware:
             request_id_var.reset(token)
         response["X-Request-ID"] = rid
         return response
-
-
-def health(request):
-    return JsonResponse({"status": "ok"})
 
 
 def ready(request):

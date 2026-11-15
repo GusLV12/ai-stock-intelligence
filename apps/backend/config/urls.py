@@ -48,7 +48,6 @@ router.register("instruments", InstrumentViewSet, basename="instrument")
 
 urlpatterns = [
     *([path(f"{settings.ADMIN_URL}/", admin.site.urls)] if settings.ADMIN_URL else []),
-    path("api/v1/health", observability.health, name="health"),
     path("api/v1/ready", observability.ready, name="ready"),
     path("api/v1/", include("modules.core.urls")),
     path("api/v1/portfolio/transactions", TransactionsView.as_view(), name="transactions"),
