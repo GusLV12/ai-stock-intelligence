@@ -1,0 +1,31 @@
+# Secretos y entorno
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+db.sqlite3
+
+# Node
+node_modules/
+.next/
+
+# Datos financieros reales (nunca al repositorio)
+imports/
+evidence/
+*.pdf
+*.xlsx
+infra/backups/*
+!infra/backups/.gitkeep
+tests/fixtures/real/
+
+# SO / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
