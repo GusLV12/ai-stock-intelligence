@@ -19,6 +19,7 @@ from .engine import PaperError, Rules
 from .models import PaperAccount, PaperOrder
 
 LIMIT_EXPIRY_DAYS = 30
+REBALANCE_BAND = Decimal("0.02")  # diferencias menores al 2 % del peso objetivo no generan orden
 BPS = Decimal(10_000)
 
 
@@ -240,7 +241,9 @@ def summary(account: PaperAccount, now=None) -> dict:
 def equity_curve(account: PaperAccount) -> list[dict]:
     """Capital diario (efectivo + posiciones al cierre). Antes de la primera operación es el capital inicial."""
     orders = list(account.orders.filter(status=PaperOrder.Status.FILLED).order_by("decided_at", "id"))
-    start = account.created_at.date()
+    start = (
+        min(account.created_at.date(), orders[0].decided_at.date()) if orders else account.created_at.date()
+    )
     curve = [{"date": start, "equity": account.initial_cash}]
     if not orders:
         return curve
@@ -263,6 +266,10 @@ def equity_curve(account: PaperAccount) -> list[dict]:
             if d in closes[i]:
                 last[i] = closes[i][d]
         curve.append({"date": d, "equity": engine.equity(state, dict(last))})
+    if (
+        len(curve) > 1 and curve[1]["date"] <= start
+    ):  # la primera operación es el mismo día de la creación: un solo punto por fecha
+        curve = curve[1:]
     return curve
 
 
@@ -316,8 +323,10 @@ def propose_from_experiment(
     st = account_state(account)
     marks = _marks(st, now)
     total = engine.equity(st, marks)
-    target_value = total * (1 - cash_buffer) / max(len(ranking), 1)
     rules = Rules.from_config(account.config)
+    target_value = min(
+        total * (1 - cash_buffer) / max(len(ranking), 1), total * rules.max_position_pct * Decimal("0.99")
+    )  # sin pasar el tope por emisora
     insts = {
         i.id: i
         for i in Instrument.objects.filter(pk__in=[r["instrument"] for r in ranking] + list(st.positions()))
@@ -354,6 +363,8 @@ def propose_from_experiment(
         step = Decimal(1).scaleb(-ins.quantity_scale)
         want = (target_value / px).quantize(step, rounding=ROUND_DOWN)
         diff = want - st.quantity(ins.id)
+        if abs(diff * px) < REBALANCE_BAND * target_value:  # banda: no operar por diferencias insignificantes
+            continue
         if diff > 0:
             proposals.append(
                 {

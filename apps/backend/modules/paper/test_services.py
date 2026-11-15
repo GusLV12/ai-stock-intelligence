@@ -13,7 +13,7 @@ from modules.quant.models import QuantExperiment
 
 from . import services as svc
 from .engine import PaperError
-from .models import PaperJournalEntry, PaperOrder
+from .models import PaperAccount, PaperJournalEntry, PaperOrder
 
 NOW = datetime(2026, 11, 10, 18, 0, tzinfo=UTC)
 
@@ -170,6 +170,10 @@ def test_una_orden_decidida_es_inmutable_y_nada_se_borra(ctx):
 
 def test_curva_de_capital_y_metricas(ctx):
     _, ins, acc = ctx
+    PaperAccount.objects.filter(pk=acc.pk).update(
+        created_at=NOW - timedelta(days=2)
+    )  # la cuenta existe desde antes de operar
+    acc.refresh_from_db()
     buy(acc, ins, 10, now=NOW)
     for i, px in enumerate([100, 102, 99, 105]):
         DailyClose.objects.create(
@@ -242,3 +246,24 @@ def test_propuesta_omite_instrumentos_de_investigacion_o_sin_precio(ctx):
         acc, exp(user, "NO_PROMOVIDO", [(r.id, 1), (sin.id, 0.5)]), top_k=2, now=NOW
     )
     assert p["proposals"] == [] and len(p["warnings"]) >= 3
+
+
+def test_la_curva_tiene_un_solo_punto_por_fecha_aunque_se_opere_el_dia_de_la_creacion(ctx):
+    _, ins, acc = ctx
+    hoy = datetime.now(UTC)
+    PaperAccount.objects.filter(pk=acc.pk).update(created_at=hoy)
+    acc.refresh_from_db()
+    record_price(ins, D(100), "MANUAL", hoy - timedelta(minutes=5))
+    svc.place_order(acc, ins, "BUY", D(1), now=hoy)
+    fechas = [c["date"] for c in svc.equity_curve(acc)]
+    assert fechas == sorted(set(fechas)) and len(fechas) == len(set(fechas))
+
+
+def test_propuesta_no_opera_por_diferencias_insignificantes(ctx):
+    user, ins, acc = ctx
+    e = exp(user, "PROMOVER_A_SEGUIMIENTO", [(ins.id, 1.0)])
+    p = svc.propose_from_experiment(acc, e, top_k=1, now=NOW)
+    assert [x["side"] for x in p["proposals"]] == ["BUY"]
+    buy(acc, ins, p["proposals"][0]["quantity"])
+    record_price(ins, D("100.2"), "MANUAL", NOW + timedelta(minutes=1))  # el precio se mueve un poco
+    assert svc.propose_from_experiment(acc, e, top_k=1, now=NOW + timedelta(minutes=2))["proposals"] == []

@@ -75,6 +75,7 @@ export default function Dashboard() {
         <nav className="actions" aria-label="Principal">
           <Link className="btn ghost" href="/tecnico">Técnico</Link>
           <Link className="btn ghost" href="/quant">Quant Lab</Link>
+          <Link className="btn ghost" href="/paper">Paper trading</Link>
           <Link className="btn ghost" href="/inteligencia">Inteligencia</Link>
           <Link className="btn ghost" href="/screener">Screener</Link>
           <Link className="btn ghost" href="/fair-value">Fair Value</Link>
