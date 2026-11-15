@@ -33,6 +33,7 @@ from modules.portfolio.api import (
 )
 from modules.portfolio.dashboard import DashboardView
 from modules.pricing.api import FxView, PricesView
+from modules.technical.alerts_api import AlertsView, CancelAlertView, EvaluateAlertsView
 from modules.technical.api import AnalyzeView, ScanView, SymbolsView, TradePlanView
 from modules.technical.intraday_api import IntradayView
 from modules.valuations.api import DcfView, FairValueDetailView, FairValueView, ReverseDcfView
@@ -62,6 +63,9 @@ urlpatterns = [
     path("api/v1/technical/symbols", SymbolsView.as_view(), name="technical-symbols"),
     path("api/v1/technical/analyze", AnalyzeView.as_view(), name="technical-analyze"),
     path("api/v1/technical/intraday", IntradayView.as_view(), name="technical-intraday"),
+    path("api/v1/technical/alerts", AlertsView.as_view(), name="technical-alerts"),
+    path("api/v1/technical/alerts/evaluate", EvaluateAlertsView.as_view(), name="technical-alerts-evaluate"),
+    path("api/v1/technical/alerts/<int:pk>/cancel", CancelAlertView.as_view(), name="technical-alert-cancel"),
     path("api/v1/technical/scan", ScanView.as_view(), name="technical-scan"),
     path("api/v1/technical/trade-plan", TradePlanView.as_view(), name="technical-trade-plan"),
     path("api/v1/portfolio/exposure", ExposureView.as_view(), name="exposure"),
