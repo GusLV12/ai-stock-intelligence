@@ -77,11 +77,12 @@ def test_formato_desconocido_se_rechaza():
 
 
 def test_snapshot_sin_historial_da_falta_en_libro_y_no_crea_movimientos(account):
-    snap = import_snapshot(account, make_xlsx(ROWS), as_of=AS_OF)
+    content = make_xlsx(ROWS)  # una sola vez: openpyxl embebe la hora de creación en el archivo
+    snap = import_snapshot(account, content, as_of=AS_OF)
     assert {r["status"] for r in reconcile(snap)} == {"falta_en_libro"}
     assert account.transactions.count() == 0
     with pytest.raises(ImportError_, match="ya fue cargado"):
-        import_snapshot(account, make_xlsx(ROWS), as_of=AS_OF)
+        import_snapshot(account, content, as_of=AS_OF)
 
 
 def test_saldo_de_apertura_crea_lotes_y_concilia_ok(account):
