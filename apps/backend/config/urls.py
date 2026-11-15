@@ -21,6 +21,7 @@ from modules.portfolio.api import (
     TaxYearSummaryView,
     TransactionsView,
 )
+from modules.portfolio.dashboard import DashboardView
 
 router = SimpleRouter(trailing_slash=False)
 router.register("accounts", AccountViewSet, basename="account")
@@ -31,6 +32,7 @@ urlpatterns = [
     path("api/v1/", include("modules.core.urls")),
     path("api/v1/portfolio/transactions", TransactionsView.as_view(), name="transactions"),
     path("api/v1/portfolio/positions", PositionsView.as_view(), name="positions"),
+    path("api/v1/portfolio/dashboard", DashboardView.as_view(), name="dashboard"),
     path("api/v1/portfolio/summary", SummaryView.as_view(), name="summary"),
     path("api/v1/portfolio/sales", SalesView.as_view(), name="sales"),
     path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
