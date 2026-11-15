@@ -29,12 +29,13 @@ def _age_hours(now, moment):
     return round((now - moment).total_seconds() / 3600, 1)
 
 
-def build_dashboard(user) -> dict:
+def build_dashboard(user, account_ids=None) -> dict:
+    """account_ids (opcional) limita el resultado a esas cuentas (p. ej. las que autoriza una credencial MCP)."""
     now = timezone.now()
     tickers = {i.instrument_id: i.value for i in InstrumentIdentifier.objects.filter(kind="TICKER")}
 
     rows, observed = [], []
-    for r in _positions_for(user):
+    for r in _positions_for(user, account_ids=account_ids):
         mp = latest_price(_instrument(r["instrument"]))
         cost = r["cost_basis"]
         price = mp.price if mp else None
@@ -70,7 +71,10 @@ def build_dashboard(user) -> dict:
 
     cash = defaultdict(lambda: ZERO)
     latest_snap = {}
-    for s in PositionSnapshot.objects.filter(account__owner=user).order_by("as_of"):
+    snap_qs = PositionSnapshot.objects.filter(account__owner=user)
+    if account_ids is not None:
+        snap_qs = snap_qs.filter(account_id__in=list(account_ids))
+    for s in snap_qs.order_by("as_of"):
         latest_snap[s.account_id] = s
     for s in latest_snap.values():
         if s.cash_amount is not None:
@@ -101,14 +105,17 @@ def build_dashboard(user) -> dict:
             "note": "Tipo de cambio de referencia; no es el que aplica el broker.",
         }
 
-    account_ids = list(InvestmentAccount.objects.filter(owner=user).values_list("id", flat=True))
+    acc_qs = InvestmentAccount.objects.filter(owner=user)
+    if account_ids is not None:
+        acc_qs = acc_qs.filter(id__in=list(account_ids))
+    perf_account_ids = list(acc_qs.values_list("id", flat=True))
     newest = max((p.observed_at for p in observed), default=None)
     performance = {}
     for cur in out_totals:
         in_cur = [r for r in rows if r["currency"] == cur]
         priced_all = all(r["market_value"] is not None for r in in_cur)
         terminal = totals[cur]["market_value"] if priced_all else None
-        performance[cur] = money_weighted_return(account_ids, cur, terminal, newest or now, priced_all)
+        performance[cur] = money_weighted_return(perf_account_ids, cur, terminal, newest or now, priced_all)
 
     total_mv = sum((r["market_value"] for r in rows if r["market_value"] is not None), ZERO)
     positions = []

@@ -62,10 +62,13 @@ class TransactionsView(APIView):
         return Response(TransactionSerializer(tx, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
-def _positions_for(user, account_id=None):
+def _positions_for(user, account_id=None, account_ids=None):
+    """account_ids (opcional) restringe a un conjunto de cuentas; vacío = ninguna."""
     pairs = TaxLot.objects.filter(account__owner=user)
     if account_id:
         pairs = pairs.filter(account_id=account_id)
+    if account_ids is not None:
+        pairs = pairs.filter(account_id__in=list(account_ids))
     pairs = pairs.values_list("account_id", "instrument_id").distinct()
     accounts = {a.id: a for a in InvestmentAccount.objects.filter(owner=user)}
     instruments = {i.id: i for i in Instrument.objects.all()}
