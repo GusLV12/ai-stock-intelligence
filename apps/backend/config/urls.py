@@ -22,6 +22,7 @@ from modules.portfolio.api import (
     TransactionsView,
 )
 from modules.portfolio.dashboard import DashboardView
+from modules.pricing.api import FxView, PricesView
 
 router = SimpleRouter(trailing_slash=False)
 router.register("accounts", AccountViewSet, basename="account")
@@ -37,6 +38,8 @@ urlpatterns = [
     path("api/v1/portfolio/sales", SalesView.as_view(), name="sales"),
     path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
     path("api/v1/tax/years/<int:year>/sales", TaxYearSalesView.as_view(), name="tax-sales"),
+    path("api/v1/market/prices", PricesView.as_view(), name="market-prices"),
+    path("api/v1/market/fx", FxView.as_view(), name="market-fx"),
     path("api/v1/imports/positions", PositionsImportView.as_view(), name="import-positions"),
     path("api/v1/snapshots/<int:pk>/reconciliation", SnapshotReconciliationView.as_view(), name="snapshot-rec"),
     path("api/v1/snapshots/<int:pk>/opening-balances", SnapshotOpeningView.as_view(), name="snapshot-opening"),
