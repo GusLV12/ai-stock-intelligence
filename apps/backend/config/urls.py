@@ -7,6 +7,7 @@ from modules.assistant.api import ChatView
 from modules.calculators.api import CagrView, TargetBuyPriceView
 from modules.fundamentals.api import ImportView as FundamentalsImportView
 from modules.fundamentals.api import InstrumentFinancialsView
+from modules.fundamentals.screener_api import RunDetailView, RunListView, RunScreenView
 from modules.imports.api import (
     ExportView,
     ImportConfirmView,
@@ -43,6 +44,9 @@ urlpatterns = [
     path("api/v1/portfolio/sales", SalesView.as_view(), name="sales"),
     path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
     path("api/v1/tax/years/<int:year>/sales", TaxYearSalesView.as_view(), name="tax-sales"),
+    path("api/v1/screeners/fair-value", RunScreenView.as_view(), name="screener-run"),
+    path("api/v1/screeners/runs", RunListView.as_view(), name="screener-runs"),
+    path("api/v1/screeners/runs/<int:pk>", RunDetailView.as_view(), name="screener-run-detail"),
     path("api/v1/fundamentals/import", FundamentalsImportView.as_view(), name="fundamentals-import"),
     path("api/v1/fundamentals/<int:pk>", InstrumentFinancialsView.as_view(), name="fundamentals-detail"),
     path("api/v1/calculators/cagr", CagrView.as_view(), name="calc-cagr"),

@@ -14,7 +14,7 @@ class InstrumentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Instrument
-        fields = ["id", "asset_class", "name", "market", "currency", "quantity_scale", "identifiers"]
+        fields = ["id", "asset_class", "name", "market", "currency", "quantity_scale", "sector_kind", "identifiers"]
         read_only_fields = ["id"]
 
     def validate_quantity_scale(self, value):

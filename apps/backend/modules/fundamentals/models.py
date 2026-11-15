@@ -54,3 +54,6 @@ class FinancialYear(models.Model):
 
     def delete(self, *args, **kwargs):
         raise models.ProtectedError("Los datos financieros no se borran; una corrección crea una versión nueva.", {self})
+
+
+from .screen_models import ScreenRun  # noqa: F401  (registra el modelo en la app)

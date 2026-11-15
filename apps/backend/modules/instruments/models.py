@@ -16,6 +16,8 @@ class Instrument(models.Model):
     currency = models.CharField(max_length=3, default="USD")
     # Decimales máximos permitidos en cantidades (acciones fraccionarias: 6; cripto: 8–18).
     quantity_scale = models.PositiveSmallIntegerField(default=6)
+    # Para decidir qué métodos de valoración y filtros aplican (un banco no se valora como una industrial).
+    sector_kind = models.CharField(max_length=15, default="non_financial", choices=[("non_financial", "No financiero"), ("bank", "Banco / financiero")])
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
