@@ -142,3 +142,6 @@ select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
 .check input { width: auto; }
+
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); width: 100%; resize: vertical; }
