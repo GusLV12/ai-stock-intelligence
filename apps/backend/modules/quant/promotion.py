@@ -34,6 +34,10 @@ def required_t(base: float, trials: int) -> float:
     return max(base, NormalDist().inv_cdf(1 - 0.025 / max(trials, 1)))
 
 
+def _fmt(v):
+    return "sin dato" if v is None else (str(v) if isinstance(v, int) else f"{v:.3f}")
+
+
 def _check(id_, label, value, threshold, passed, direction=">="):
     return {
         "id": id_,
@@ -90,7 +94,8 @@ def evaluate(
     ]  # fmt: skip
     failed = [x for x in checks if not x["passed"]]
     reasons = [
-        f"Falla: {x['label']} (valor {x['value']}, umbral {x['direction']} {x['threshold']})." for x in failed
+        f"Falla: {x['label']} (valor {_fmt(x['value'])}, umbral {x['direction']} {_fmt(x['threshold'])})."
+        for x in failed
     ]
     return {
         **base,

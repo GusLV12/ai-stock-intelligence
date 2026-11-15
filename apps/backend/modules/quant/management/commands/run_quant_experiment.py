@@ -57,7 +57,7 @@ class Command(BaseCommand):
                 f"  {m['label']:<26} {fmt(v['mean']):>10} {fmt(t['mean']):>15} {fmt(t['t_adjusted']):>12}"
             )
         p = r["promotion"]
-        self.stdout.write(f"Candidato: {r['candidate']} → {p['verdict']}")
+        self.stdout.write(f"Candidato: {r['candidate']} -> {p['verdict']}")
         for reason in p["reasons"]:
             self.stdout.write(f"  - {reason}")
         self.stdout.write("Investigación: no es una recomendación de inversión ni autoriza operar.")
