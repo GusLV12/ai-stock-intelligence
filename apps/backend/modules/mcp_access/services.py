@@ -23,6 +23,7 @@ SCOPES = {
     "portfolio:read": "Resumen y posiciones de las cuentas autorizadas",
     "transactions:read": "Movimientos de las cuentas autorizadas (acotados por periodo)",
     "calculators:run": "Calculadoras de CAGR y precio máximo (solo cálculo; no lee tu cartera)",
+    "research:read": "Screener de valor y análisis técnico de emisoras (datos de mercado y fundamentales; no leen tu cartera)",
 }
 
 

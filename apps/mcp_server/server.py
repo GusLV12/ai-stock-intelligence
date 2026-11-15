@@ -133,6 +133,41 @@ async def calculate_target_buy_price(params: dict) -> dict:
     )
 
 
+@mcp.tool(annotations=READ_ONLY)
+async def portfolio_risk(window_days: int = 365) -> dict:
+    """Riesgo histórico de las cuentas autorizadas: volatilidad y caída máxima por activo y de la cartera, y correlaciones,
+    en una ventana explícita de 60 a 1830 días. Son métricas pasadas, no predicen el riesgo futuro. Scope: portfolio:read."""
+    return await _call("portfolio_risk", "portfolio:read", tools.portfolio_risk, window_days=window_days)
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def simulate_portfolio(scenario: dict) -> dict:
+    """Simula shocks deterministas sobre las cuentas autorizadas: scenario = {preset?, shocks?: [{target, pct}], fx_usd_mxn_pct?}.
+    Devuelve el impacto por posición y total (activo y cambiario por separado). Es un escenario hipotético, no una predicción,
+    y no modifica nada. Scope: portfolio:read."""
+    return await _call("simulate_portfolio", "portfolio:read", tools.simulate_portfolio, scenario=scenario)
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def screen_undervalued_stocks(params: dict | None = None) -> dict:
+    """Screener por reglas explícitas sobre los fundamentales cargados: min_fscore (Piotroski 0-9), min_margin_of_safety,
+    require_positive_fcf, max_debt_to_assets, min_revenue_growth, require_fresh_data, as_of. Cada fila trae su evidencia y las
+    dimensiones por separado (sin puntaje único). No guarda la corrida. No lee tu cartera. Scope: research:read."""
+    return await _call(
+        "screen_undervalued_stocks", "research:read", tools.screen_undervalued_stocks, params=params
+    )
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def technical_analysis(ticker: str, days: int = 300) -> dict:
+    """Indicadores (EMA, RSI, MACD, ATR, Bollinger, volumen relativo), señales con su regla y los valores que las sustentan, y
+    antigüedad del dato, para una emisora con historial guardado. Cierres diarios con retraso: no son predicciones ni recomendaciones.
+    days va de 30 a 1000. No lee tu cartera. Scope: research:read."""
+    return await _call(
+        "technical_analysis", "research:read", tools.technical_analysis, ticker=ticker, days=days
+    )
+
+
 def _transport_security():
     from mcp.server.transport_security import TransportSecuritySettings
 

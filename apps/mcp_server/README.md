@@ -11,6 +11,10 @@ Expone tu portafolio a clientes MCP (p. ej. Claude Code) por `stdio`. **No puede
 | `get_transactions` | `transactions:read` | Movimientos en un periodo (máx. 366 días, 200 filas) |
 | `calculate_cagr` | `calculators:run` | CAGR histórico/proyectado, retorno real, FX, TWR y dividendos (solo cálculo; no lee tu cartera) |
 | `calculate_target_buy_price` | `calculators:run` | Precio máximo de compra por rentabilidad objetivo y margen de seguridad |
+| `portfolio_risk` | `portfolio:read` | Volatilidad, caída máxima y correlaciones históricas de las cuentas autorizadas (ventana de 60 a 1830 días) |
+| `simulate_portfolio` | `portfolio:read` | Shocks deterministas sobre las cuentas autorizadas (no es una predicción; no modifica nada) |
+| `screen_undervalued_stocks` | `research:read` | Screener por reglas sobre fundamentales cargados, con evidencia por dimensión; no guarda la corrida ni lee tu cartera |
+| `technical_analysis` | `research:read` | Indicadores y señales auditables de una emisora con historial guardado, con antigüedad del dato |
 
 Cada credencial tiene scopes y **cuentas** explícitos; el servidor solo ve esas cuentas.
 

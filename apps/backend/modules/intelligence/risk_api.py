@@ -29,6 +29,34 @@ def _series_for(instrument_ids, since):
     return out
 
 
+def risk_report(user, window: int, account_ids=None) -> dict:
+    """Volatilidad, caída máxima y correlaciones históricas de las posiciones (opcionalmente solo de ciertas cuentas)."""
+    if not MIN_WINDOW <= window <= MAX_WINDOW:
+        raise ValueError(f"window_days debe estar entre {MIN_WINDOW} y {MAX_WINDOW}.")
+    since = timezone.now().date() - timedelta(days=window)
+    loaded = load_holdings(user, account_ids=account_ids)
+    holdings = [h for h in loaded["holdings"] if h.value_base is not None]
+    total = sum((h.value_base for h in holdings), Decimal(0))
+    if total <= 0:
+        return {"evaluable": False, "note": "Sin posiciones valoradas: no hay riesgo que calcular."}
+    by_instrument = {h.instrument_id: h for h in holdings if h.instrument_id}
+    raw_series = _series_for(list(by_instrument), since)
+    series = {by_instrument[i].ticker: bars for i, bars in raw_series.items()}
+    weights = {h.ticker: float(h.value_base / total) for h in holdings}
+    result = risk.analyze(series, weights)
+    no_history = sorted(h.ticker for h in holdings if h.asset_class != "CASH" and h.ticker not in series)
+    if no_history:
+        result["warnings"].append(
+            "Sin historial guardado (ejecuta refresh_price_history): " + ", ".join(no_history) + "."
+        )
+    result.update(
+        evaluable=bool(result["assets"]), requested_window_days=window,
+        providers=sorted(Counter(r.provider for r in DailyClose.objects.filter(instrument_id__in=list(by_instrument), date__gte=since).only("provider")).keys()),
+        disclaimer="Métricas históricas, no predicen el riesgo futuro ni son asesoría de inversión.",
+    )  # fmt: skip
+    return plain(_floats_to_decimal(result))
+
+
 class RiskView(APIView):
     """Volatilidad, caída máxima y correlaciones históricas con ventana explícita (`window_days`)."""
 
@@ -38,35 +66,12 @@ class RiskView(APIView):
             window = int(raw)
         except (TypeError, ValueError):
             raise serializers.ValidationError({"window_days": "Entero de días."}) from None
-        if not MIN_WINDOW <= window <= MAX_WINDOW:
+        try:
+            return Response(risk_report(request.user, window))
+        except ValueError:
             raise serializers.ValidationError(
                 {"window_days": f"Debe estar entre {MIN_WINDOW} y {MAX_WINDOW}."}
-            )
-        since = timezone.now().date() - timedelta(days=window)
-
-        loaded = load_holdings(request.user)
-        holdings = [h for h in loaded["holdings"] if h.value_base is not None]
-        total = sum((h.value_base for h in holdings), Decimal(0))
-        if total <= 0:
-            return Response(
-                {"evaluable": False, "note": "Sin posiciones valoradas: no hay riesgo que calcular."}
-            )
-        by_instrument = {h.instrument_id: h for h in holdings if h.instrument_id}
-        raw_series = _series_for(list(by_instrument), since)
-        series = {by_instrument[i].ticker: bars for i, bars in raw_series.items()}
-        weights = {h.ticker: float(h.value_base / total) for h in holdings}
-        result = risk.analyze(series, weights)
-        no_history = sorted(h.ticker for h in holdings if h.asset_class != "CASH" and h.ticker not in series)
-        if no_history:
-            result["warnings"].append(
-                "Sin historial guardado (ejecuta refresh_price_history): " + ", ".join(no_history) + "."
-            )
-        result.update(
-            evaluable=bool(result["assets"]), requested_window_days=window,
-            providers=sorted(Counter(r.provider for r in DailyClose.objects.filter(instrument_id__in=list(by_instrument), date__gte=since).only("provider")).keys()),
-            disclaimer="Métricas históricas, no predicen el riesgo futuro ni son asesoría de inversión.",
-        )  # fmt: skip
-        return Response(plain(_floats_to_decimal(result)))
+            ) from None
 
 
 def _floats_to_decimal(obj):

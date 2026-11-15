@@ -81,6 +81,7 @@ def test_descubrimiento_solo_lectura(env):
     tools = run(env, env["ro"], go)
     assert {t.name for t in tools} == {
         "portfolio_summary", "list_positions", "get_transactions", "calculate_cagr", "calculate_target_buy_price",
+        "portfolio_risk", "simulate_portfolio", "screen_undervalued_stocks", "technical_analysis",
     }  # fmt: skip
     assert all(t.annotations and t.annotations.read_only_hint for t in tools)
     # Ninguna herramienta ESCRIBE u opera: ningún nombre empieza por un verbo de operación.
@@ -183,3 +184,17 @@ def test_calculadora_por_mcp_y_scope_separado(env):
         )
 
     assert json.loads(text(run(env, env["calc"], target)))["result"]["max_price_by_return"] == "100.000000"
+
+
+def test_las_herramientas_de_investigacion_exigen_su_scope_por_stdio(env):
+    async def go(s):
+        return await s.call_tool("technical_analysis", {"ticker": "AAA"})
+
+    res = run(env, env["all"], go)  # esta clave no tiene research:read (la de lectura simple se revoca en otra prueba)
+    assert res.is_error and "research:read" in text(res)
+
+    async def riesgo(s):
+        return await s.call_tool("portfolio_risk", {"window_days": 90})
+
+    res = run(env, env["all"], riesgo)
+    assert not res.is_error and "disclaimer_mcp" in text(res)

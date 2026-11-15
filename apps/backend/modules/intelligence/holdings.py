@@ -46,7 +46,8 @@ def _to_base(value: Decimal, currency: str, fx_usd_mxn: Decimal | None) -> Decim
     return None
 
 
-def load_holdings(user) -> dict:
+def load_holdings(user, account_ids=None) -> dict:
+    """`account_ids` (opcional) limita todo a esas cuentas (p. ej. las que autoriza una credencial MCP)."""
     now = timezone.now()
     fx = latest_fx("USD", "MXN")
     fx_rate = fx.rate if fx else None
@@ -55,7 +56,7 @@ def load_holdings(user) -> dict:
     accounts = {a.id: a for a in InvestmentAccount.objects.filter(owner=user)}
 
     holdings, unpriced, unconverted = [], [], []
-    for r in _positions_for(user):
+    for r in _positions_for(user, account_ids=account_ids):
         ins = instruments[r["instrument"]]
         acc = accounts[r["account"]]
         mp = latest_price(ins)
@@ -78,7 +79,10 @@ def load_holdings(user) -> dict:
 
     # Efectivo del último reporte de cada cuenta (solo USD se incorpora a la base).
     latest = {}
-    for s in PositionSnapshot.objects.filter(account__owner=user).order_by("as_of"):
+    snaps = PositionSnapshot.objects.filter(account__owner=user)
+    if account_ids is not None:
+        snaps = snaps.filter(account_id__in=list(account_ids))
+    for s in snaps.order_by("as_of"):
         latest[s.account_id] = s
     cash = []
     for s in latest.values():
