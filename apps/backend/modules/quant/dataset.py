@@ -38,7 +38,9 @@ def _rank_norm(values: list[float]) -> list[float]:
     return [r / (n - 1) - 0.5 for r in ranks] if n > 1 else [0.0] * n
 
 
-def build_panel(series: dict[int, list[dict]], horizon: int, delay: int = DEFAULT_DELAY, min_names: int = 5) -> dict:
+def build_panel(
+    series: dict[int, list[dict]], horizon: int, delay: int = DEFAULT_DELAY, min_names: int = 5
+) -> dict:
     """`series`: {instrument_id: velas ascendentes con 'date' y 'close'}. Devuelve filas, fechas y descartes."""
     if horizon < 1 or delay < 0:
         raise DatasetError("horizon debe ser ≥ 1 y delay ≥ 0.")
@@ -71,8 +73,16 @@ def build_panel(series: dict[int, list[dict]], horizon: int, delay: int = DEFAUL
 def dataset_hash(panel: dict) -> str:
     """Huella del panel: mismos datos y parámetros → mismo hash (reproducibilidad, plan 10.5 punto 10)."""
     payload = [
-        [r["date"].isoformat(), r["inst"], [round(r["x"][k], 10) for k in panel["features"]], None if r["y"] is None else round(r["y"], 10)]
+        [
+            r["date"].isoformat(),
+            r["inst"],
+            [round(r["x"][k], 10) for k in panel["features"]],
+            None if r["y"] is None else round(r["y"], 10),
+        ]
         for r in panel["rows"]
     ]
-    blob = json.dumps({"h": panel["horizon"], "d": panel["delay"], "m": panel["min_names"], "rows": payload}, separators=(",", ":"))
+    blob = json.dumps(
+        {"h": panel["horizon"], "d": panel["delay"], "m": panel["min_names"], "rows": payload},
+        separators=(",", ":"),
+    )
     return hashlib.sha256(blob.encode()).hexdigest()

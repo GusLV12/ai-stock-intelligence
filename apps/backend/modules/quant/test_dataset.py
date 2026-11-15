@@ -46,7 +46,9 @@ def test_etiqueta_con_retraso_de_ejecucion():
     inst, d = 1, p["rows"][0]["date"]
     i = [b["date"] for b in u[inst]].index(d)
     r = next(r for r in p["rows"] if r["date"] == d and r["inst"] == inst)
-    assert r["y"] == pytest.approx(u[inst][i + 6]["close"] / u[inst][i + 1]["close"] - 1)  # entra en t+1, sale en t+6
+    assert r["y"] == pytest.approx(
+        u[inst][i + 6]["close"] / u[inst][i + 1]["close"] - 1
+    )  # entra en t+1, sale en t+6
     last = [r for r in p["rows"] if r["date"] == p["dates"][-1]]
     assert all(r["y"] is None for r in last)  # sin futuro no hay etiqueta
 
@@ -60,7 +62,9 @@ def test_la_etiqueta_no_contamina_los_factores():
             b["close"] *= 1.5
     b = build_panel(u2, 5)
     viejas = {(r["date"], r["inst"]): r["x"] for r in a["rows"] if r["date"] <= a["dates"][-12]}
-    assert all(r["x"] == viejas[(r["date"], r["inst"])] for r in b["rows"] if (r["date"], r["inst"]) in viejas)
+    assert all(
+        r["x"] == viejas[(r["date"], r["inst"])] for r in b["rows"] if (r["date"], r["inst"]) in viejas
+    )
 
 
 def test_normalizacion_por_fecha_en_rango():
