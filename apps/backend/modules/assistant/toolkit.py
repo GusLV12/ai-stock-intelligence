@@ -77,10 +77,8 @@ def execute_tool(user, name: str, arguments) -> dict:
             return {"ok": False, "error": "Argumentos no son JSON válido."}
     if not isinstance(arguments, dict):
         return {"ok": False, "error": "Argumentos inválidos."}
-    unknown = set(arguments) - allowed
-    if unknown:
-        return {"ok": False, "error": f"Argumentos no permitidos: {', '.join(sorted(unknown))}"}
-    clean = {k: v for k, v in arguments.items() if v is not None}
+    # Modelos pequeños suelen inventar argumentos: se descartan (nunca llegan a la función) en vez de fallar.
+    clean = {k: v for k, v in arguments.items() if k in allowed and v is not None}
     try:
         if "limit" in clean:
             clean["limit"] = int(clean["limit"])

@@ -31,6 +31,36 @@ DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 NUM_RE = re.compile(r"(?<![\w.])[-−+]?\$?\d(?:[\d,]*\d)?(?:\.\d+)?%?")
 
 
+ACTION_CLAIM = re.compile(
+    r"\b(vend[ií]|compr[ée]|ejecut[ée]|realic[ée]|he (vendido|comprado|ejecutado|realizado)|"
+    r"ya (lo )?(hice|vend[ií]|compr[ée]|ejecut[ée])|voy a (vender|comprar|ejecutar)|"
+    r"(orden|operaci[oó]n) (enviada|ejecutada|realizada)|ignoro las reglas)\b",
+    re.IGNORECASE,
+)
+REFUSAL = (
+    "No puedo ejecutar operaciones ni mover fondos: esta interfaz es solo de consulta, así que no "
+    "vendí ni compré nada. Puedo ayudarte a revisar tus posiciones y movimientos."
+)
+# Enrutado determinista: los modelos pequeños a veces no llaman la herramienta aunque deban.
+ADVICE = re.compile(r"\b(debo|deber[ií]a|conviene|recomiend|ignora)", re.IGNORECASE)
+ROUTES = [
+    ("get_transactions", re.compile(r"operaci|movimiento|transacci|compr[eé]|vend[ií]|historial", re.IGNORECASE)),
+    ("list_positions", re.compile(r"posici|peso|emisora|acciones|t[ií]tulos|cartera por", re.IGNORECASE)),
+    ("portfolio_summary", re.compile(r"cu[aá]nto|valor|vale|total|resumen|ganancia|p[eé]rdida|rendimiento|portafolio", re.IGNORECASE)),
+]
+
+
+def suggest_tool(question: str) -> str | None:
+    if ADVICE.search(question):
+        return None
+    return next((name for name, rx in ROUTES if rx.search(question)), None)
+
+
+def claims_action(answer: str) -> bool:
+    """El sistema no puede operar: si el modelo afirma haberlo hecho (o acepta hacerlo), es falso."""
+    return bool(ACTION_CLAIM.search(answer))
+
+
 @dataclass
 class ChatResult:
     answer: str
@@ -38,6 +68,7 @@ class ChatResult:
     sources: list = field(default_factory=list)
     unverified_numbers: list = field(default_factory=list)
     steps: int = 0
+    guardrail: str | None = None
 
 
 def clean_answer(text: str) -> str:
@@ -83,8 +114,10 @@ def answer_numbers(text: str) -> list[tuple[str, float]]:
     return found
 
 
-def unverified_numbers(answer: str, tool_data: list) -> list[str]:
-    known: set[float] = set()
+def unverified_numbers(answer: str, tool_data: list, question: str = "") -> list[str]:
+    """Cifras de la respuesta ausentes en los datos. Las que el usuario escribió en su pregunta
+    (p. ej. «90 días») no se consideran inventadas."""
+    known: set[float] = {v for _, v in answer_numbers(question)}
     for d in tool_data:
         _collect_numbers(d, known)
     bad = []
@@ -128,12 +161,23 @@ def run_chat(user, message: str, history, client, execute=execute_tool) -> ChatR
     for step in range(1, MAX_STEPS + 1):
         reply = client.chat(messages, TOOL_SPECS)
         requested = reply["tool_calls"][:MAX_CALLS_PER_STEP]
+        if not requested and not results and step == 1 and (route := suggest_tool(message)):
+            res = execute(user, route, {})  # el modelo no llamó la herramienta: el sistema la llama
+            total += 1
+            results.append((route, res))
+            calls.append({"name": route, "ok": res["ok"], "error": res.get("error"), "routed": True})
+            messages.append({"role": "assistant", "content": "", "tool_calls": [{"function": {"name": route, "arguments": {}}}]})
+            messages.append({"role": "tool", "tool_name": route, "content": to_model_text(res)})
+            continue
         if not requested:
             answer = clean_answer(reply["content"]) or "No obtuve una respuesta del modelo."
+            guardrail = None
+            if claims_action(answer):
+                answer, guardrail = REFUSAL, "action_claim_blocked"
             data = [r["data"] for _, r in results if r.get("ok")]
             return ChatResult(
                 answer=answer, tool_calls=calls, sources=_sources(results),
-                unverified_numbers=unverified_numbers(answer, data), steps=step,
+                unverified_numbers=unverified_numbers(answer, data, message), steps=step, guardrail=guardrail,
             )  # fmt: skip
         messages.append({"role": "assistant", "content": reply["content"], "tool_calls": reply["tool_calls"][:MAX_CALLS_PER_STEP]})
         for tc in requested:

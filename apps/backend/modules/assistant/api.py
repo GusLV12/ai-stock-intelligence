@@ -56,6 +56,7 @@ class ChatView(APIView):
                 "tool_calls": result.tool_calls,
                 "sources": result.sources,
                 "unverified_numbers": result.unverified_numbers,
+                "guardrail": result.guardrail,
                 "verification_note": (
                     "Las cifras listadas en unverified_numbers no aparecen en los datos de las herramientas: "
                     "no las tomes como válidas."
