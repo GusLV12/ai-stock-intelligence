@@ -5,7 +5,7 @@ import pytest
 
 from .dataset import build_panel
 from .metrics import ic_by_date, pearson, spearman, summarize
-from .models import RIDGE_GRID, baseline_scores, fit_ridge, ridge_scores
+from .scorers import RIDGE_GRID, baseline_scores, fit_ridge, ridge_scores
 from .splits import segment, temporal_split
 
 
