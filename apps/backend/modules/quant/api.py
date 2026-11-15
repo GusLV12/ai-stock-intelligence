@@ -12,7 +12,7 @@ from modules.valuations.fair_value import plain
 from . import promotion, worker
 from .features import FEATURES
 from .models import QuantExperiment
-from .runner import DEFAULT_MODELS, HORIZONS, MODEL_LABELS, ExperimentError
+from .runner import DEFAULT_FOLDS, DEFAULT_MODELS, HORIZONS, MAX_FOLDS, MODEL_LABELS, ExperimentError
 from .services import MIN_BARS, create_experiment, load_series, verify
 
 DISCLAIMER = (
@@ -64,7 +64,7 @@ class OverviewView(APIView):
             plain(
                 {
                     "universe": [{"instrument": i, "ticker": tickers.get(i, str(i)), "bars": len(b), "last": b[-1]["date"]} for i, b in sorted(series.items())],
-                    "min_bars": MIN_BARS, "last_bar": last, "lightgbm_available": worker.available(), "horizons": list(HORIZONS),
+                    "min_bars": MIN_BARS, "last_bar": last, "lightgbm_available": worker.available(), "horizons": list(HORIZONS), "default_folds": DEFAULT_FOLDS, "max_folds": MAX_FOLDS,
                     "models": [{"id": m, "label": MODEL_LABELS[m]} for m in DEFAULT_MODELS], "features": FEATURES,
                     "criteria": asdict(promotion.Criteria()), "disclaimer": DISCLAIMER,
                 }
@@ -99,7 +99,7 @@ class ExperimentsView(APIView):
         config = {
             "horizon": horizon, "models": models, "seed": _num(data, "seed", 0, 0, 2**31 - 1, integer=True),
             "top_k": _num(data, "top_k", 3, 1, 20, integer=True), "rebalance_days": _num(data, "rebalance_days", horizon, 1, 120, integer=True),
-            "delay": 1, "capital": _num(data, "capital", 100_000, 1_000, 1e9),
+            "folds": _num(data, "folds", DEFAULT_FOLDS, 1, MAX_FOLDS, integer=True), "delay": 1, "capital": _num(data, "capital", 100_000, 1_000, 1e9),
             "costs": {k: _num(costs, k, d, 0, 200) for k, d in (("commission_bps", 1), ("half_spread_bps", 2), ("slippage_bps", 2))},
         }  # fmt: skip
         name = str(data.get("name") or "").strip()[:80] or f"Experimento h={horizon}"

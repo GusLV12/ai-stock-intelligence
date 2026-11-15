@@ -27,6 +27,8 @@ class Criteria:
     min_pct_positive: float = 0.55
     min_valid_rank_ic: float = 0.0
     min_net_excess_return: float = 0.0
+    min_folds: int = 3
+    min_folds_positive: float = 0.6
 
 
 def required_t(base: float, trials: int) -> float:
@@ -57,6 +59,7 @@ def evaluate(
     excess_net: float | None,
     trials: int = 1,
     criteria: Criteria = Criteria(),
+    fold_ics: list | None = None,
 ) -> dict:
     """`candidate`/`best_baseline`: {"name", "valid": resumen, "test": resumen} (resúmenes de metrics.summarize)."""
     c = criteria
@@ -82,6 +85,9 @@ def evaluate(
     v_ric = v["rank_ic"]["mean"]
     base_ric = best_baseline["test"]["rank_ic"]["mean"] if best_baseline else None
     t_req = required_t(c.min_t_adjusted, trials)
+    valid_folds = [x for x in (fold_ics or []) if x is not None]
+    n_folds = len(fold_ics or [])
+    pos_folds = sum(1 for x in valid_folds if x > 0) / n_folds if n_folds else None
     checks = size_checks + [
         _check("rank_ic", "Rank IC medio en prueba", ric, c.min_rank_ic, ric is not None and ric >= c.min_rank_ic),
         _check("t_adjusted", "t con muestra efectiva", t_adj, round(t_req, 3), t_adj is not None and t_adj >= t_req),
@@ -89,6 +95,8 @@ def evaluate(
         _check("valid_sign", "Rank IC en validación", v_ric, c.min_valid_rank_ic, v_ric is not None and v_ric > c.min_valid_rank_ic, ">"),
         _check("beats_baseline", f"Supera al mejor baseline ({best_baseline['name'] if best_baseline else 'ninguno'})", ric, base_ric,
                ric is not None and base_ric is not None and ric > base_ric, ">"),
+        _check("folds", "Periodos de prueba independientes (walk-forward)", n_folds, c.min_folds, n_folds >= c.min_folds),
+        _check("folds_positive", "Periodos con Rank IC positivo", pos_folds, c.min_folds_positive, pos_folds is not None and pos_folds >= c.min_folds_positive),
         _check("net_excess", "Exceso neto de costos vs universo igual", excess_net, c.min_net_excess_return,
                excess_net is not None and excess_net > c.min_net_excess_return, ">"),
     ]  # fmt: skip

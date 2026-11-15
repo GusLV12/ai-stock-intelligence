@@ -1,4 +1,5 @@
 import copy
+from itertools import pairwise
 
 import pytest
 
@@ -104,35 +105,36 @@ def test_lightgbm_participa_y_es_reproducible():
     assert a["models"]["lightgbm"]["test"]["rank_ic"]["mean"] > 0.1 and a["result_hash"] == b["result_hash"]
 
 
+def ev(*a, fold_ics=None, **k):
+    return promotion.evaluate(*a, fold_ics=[0.05, 0.04, 0.03, 0.06] if fold_ics is None else fold_ics, **k)
+
+
 def test_promocion_unidades():
     def resumen(ric, t, pos):
         return {"rank_ic": {"mean": ric, "t_adjusted": t, "pct_positive": pos}, "n_dates": 80}
 
     cand = {"name": "m", "valid": resumen(0.03, 2, 0.6), "test": resumen(0.05, 3.0, 0.7)}
     base = {"name": "momentum_20", "test": resumen(0.02, 1, 0.5)}
-    ok = promotion.evaluate(cand, base, 80, 30, 0.02)
+    ok = ev(cand, base, 80, 30, 0.02)
     assert ok["verdict"] == promotion.PROMOTE
     # cada criterio por separado hace fallar el veredicto
     assert (
-        promotion.evaluate({**cand, "test": resumen(0.01, 3.0, 0.7)}, base, 80, 30, 0.02)["verdict"]
-        == promotion.NOT_PROMOTED
+        ev({**cand, "test": resumen(0.01, 3.0, 0.7)}, base, 80, 30, 0.02)["verdict"] == promotion.NOT_PROMOTED
     )
     assert (
-        promotion.evaluate({**cand, "test": resumen(0.05, 1.5, 0.7)}, base, 80, 30, 0.02)["verdict"]
-        == promotion.NOT_PROMOTED
+        ev({**cand, "test": resumen(0.05, 1.5, 0.7)}, base, 80, 30, 0.02)["verdict"] == promotion.NOT_PROMOTED
     )
     assert (
-        promotion.evaluate({**cand, "valid": resumen(-0.01, 2, 0.6)}, base, 80, 30, 0.02)["verdict"]
-        == promotion.NOT_PROMOTED
+        ev({**cand, "valid": resumen(-0.01, 2, 0.6)}, base, 80, 30, 0.02)["verdict"] == promotion.NOT_PROMOTED
     )
     assert (
-        promotion.evaluate(cand, {"name": "b", "test": resumen(0.06, 1, 0.5)}, 80, 30, 0.02)["verdict"]
+        ev(cand, {"name": "b", "test": resumen(0.06, 1, 0.5)}, 80, 30, 0.02)["verdict"]
         == promotion.NOT_PROMOTED
     )
-    assert promotion.evaluate(cand, base, 80, 30, -0.01)["verdict"] == promotion.NOT_PROMOTED
-    assert promotion.evaluate(cand, base, 80, 30, None)["verdict"] == promotion.NOT_PROMOTED
-    assert promotion.evaluate(cand, base, 10, 30, 0.02)["verdict"] == promotion.INSUFFICIENT
-    assert promotion.evaluate(cand, base, 80, 5, 0.02)["verdict"] == promotion.INSUFFICIENT
+    assert ev(cand, base, 80, 30, -0.01)["verdict"] == promotion.NOT_PROMOTED
+    assert ev(cand, base, 80, 30, None)["verdict"] == promotion.NOT_PROMOTED
+    assert ev(cand, base, 10, 30, 0.02)["verdict"] == promotion.INSUFFICIENT
+    assert ev(cand, base, 80, 5, 0.02)["verdict"] == promotion.INSUFFICIENT
 
 
 def test_correccion_por_pruebas_multiples():
@@ -144,5 +146,68 @@ def test_correccion_por_pruebas_multiples():
         "test": {"rank_ic": {"mean": 0.05, "t_adjusted": 2.5, "pct_positive": 0.7}, "n_dates": 80},
     }
     base = {"name": "b", "test": {"rank_ic": {"mean": 0.01}}}
-    assert promotion.evaluate(cand, base, 80, 30, 0.02, trials=1)["verdict"] == promotion.PROMOTE
-    assert promotion.evaluate(cand, base, 80, 30, 0.02, trials=20)["verdict"] == promotion.NOT_PROMOTED
+    assert ev(cand, base, 80, 30, 0.02, trials=1)["verdict"] == promotion.PROMOTE
+    assert ev(cand, base, 80, 30, 0.02, trials=20)["verdict"] == promotion.NOT_PROMOTED
+
+
+def test_promocion_exige_varios_periodos_y_que_la_mayoria_sea_positiva():
+    def resumen(ric, t, pos):
+        return {"rank_ic": {"mean": ric, "t_adjusted": t, "pct_positive": pos}, "n_dates": 80}
+
+    cand = {"name": "m", "valid": resumen(0.03, 2, 0.6), "test": resumen(0.05, 3.0, 0.7)}
+    base = {"name": "b", "test": resumen(0.01, 1, 0.5)}
+    una = ev(cand, base, 80, 30, 0.02, fold_ics=[0.05])  # una sola partición no alcanza
+    assert una["verdict"] == promotion.NOT_PROMOTED and any("Periodos de prueba" in r for r in una["reasons"])
+    sin = ev(cand, base, 80, 30, 0.02, fold_ics=[])
+    assert sin["verdict"] == promotion.NOT_PROMOTED
+    mixto = ev(
+        cand, base, 80, 30, 0.02, fold_ics=[0.08, -0.03, -0.02, 0.05]
+    )  # solo 50 % de periodos positivos
+    assert mixto["verdict"] == promotion.NOT_PROMOTED and any(
+        "Periodos con Rank IC" in r for r in mixto["reasons"]
+    )
+    assert (
+        ev(cand, base, 80, 30, 0.02, fold_ics=[0.08, -0.03, 0.02, 0.05])["verdict"] == promotion.PROMOTE
+    )  # 75 %
+
+
+def test_walk_forward_evalua_en_varios_periodos_y_los_reporta():
+    r = corre(
+        mundo(7, n_names=25, n=520, persistente=True), config={"models": ["reversal_5", "ridge"], "folds": 4}
+    )
+    assert r["meta"]["split"]["mode"] == "walk_forward" and len(r["meta"]["split"]["folds"]) == 4
+    folds = r["meta"]["split"]["folds"]
+    for a, b in pairwise(folds):
+        assert a["test"][1] < b["test"][0]  # bloques de prueba contiguos y sin solape
+    for f in folds:
+        assert f["train"][1] < f["valid"][0] < f["valid"][1] < f["test"][0]  # orden temporal en cada bloque
+    assert len(r["models"]["ridge"]["folds"]) == 4 and all(
+        x["rank_ic"] is not None for x in r["models"]["ridge"]["folds"]
+    )
+    assert len(r["latest_scores"]) == 25  # ajuste final con toda la historia para la fecha más reciente
+
+
+def test_una_sola_particion_sigue_disponible_pero_no_puede_promoverse():
+    r = corre(
+        mundo(7, n_names=25, n=500, persistente=True), config={"models": ["reversal_5", "ridge"], "folds": 1}
+    )
+    assert r["meta"]["split"]["mode"] == "single" and r["promotion"]["verdict"] == promotion.NOT_PROMOTED
+    assert any("Periodos de prueba" in x for x in r["promotion"]["reasons"])
+
+
+def test_demasiados_bloques_para_el_historial_se_rechaza():
+    with pytest.raises(ExperimentError, match="Pocas fechas"):
+        corre(mundo(1, n_names=10, n=150), config={"models": ["ridge"], "folds": 8})
+    with pytest.raises(ExperimentError, match="bloques"):
+        corre(mundo(1, n_names=10, n=300), config={"models": ["ridge"], "folds": 20})
+
+
+def test_walk_forward_no_filtra_el_futuro_a_los_bloques_anteriores():
+    s = mundo(9, n_names=15, n=420, persistente=True)
+    base = corre(s, config={"models": ["ridge"]})
+    alterada = {k: [dict(b) for b in v] for k, v in s.items()}
+    for v in alterada.values():
+        for b in v[-30:]:  # solo el final: el primer bloque de prueba no puede cambiar
+            b["close"] *= 1.7
+    otra = corre(alterada, config={"models": ["ridge"]})
+    assert base["models"]["ridge"]["folds"][0] == otra["models"]["ridge"]["folds"][0]

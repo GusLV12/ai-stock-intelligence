@@ -1,11 +1,12 @@
 import random
 from datetime import date, timedelta
+from itertools import pairwise
 
 import pytest
 
 from .dataset import DatasetError, build_panel, dataset_hash
 from .features import FEATURES, MIN_HISTORY, feature_series
-from .splits import SplitError, segment, temporal_split
+from .splits import SplitError, segment, temporal_split, walk_forward
 
 
 def walk(seed, n=150, start=100.0, drift=0.0, vol=0.01):
@@ -116,3 +117,38 @@ def test_segment_filtra_filas():
     ds = p["dates"][:3]
     assert {r["date"] for r in segment(p["rows"], ds)} == set(ds)
     assert FEATURES == p["features"]
+
+
+def fechas(n):
+    return [date(2025, 1, 1) + timedelta(days=i) for i in range(n)]
+
+
+def test_walk_forward_bloques_contiguos_con_purga_y_sin_mirar_adelante():
+    ds = fechas(300)
+    wf = walk_forward(ds, horizon=20, delay=1, folds=4)
+    assert len(wf["folds"]) == 4 and wf["gap"] == 21
+    tests = [f["test"] for f in wf["folds"]]
+    assert tests[0][0] == ds[int(300 * 0.4)] and tests[-1][-1] == ds[-1]  # cubre toda la zona de prueba
+    for a, b in pairwise(tests):
+        assert b[0] == date.fromordinal(a[-1].toordinal() + 1)  # contiguos
+    for f in wf["folds"]:
+        assert max(f["train"]) < min(f["valid"]) and max(f["valid"]) < min(f["test"])
+        assert (min(f["test"]) - max(f["valid"])).days > 21  # purga antes de la prueba
+        assert (min(f["valid"]) - max(f["train"])).days > 21  # y antes de la validación
+    assert len(wf["folds"][3]["train"]) > len(wf["folds"][0]["train"])  # ventana creciente
+    assert wf["live"]["test"] == [] and max(wf["live"]["valid"]) == ds[-1]
+
+
+@pytest.mark.parametrize(
+    "kw", [{"folds": 1}, {"folds": 4, "min_history": 0.95}, {"folds": 4, "valid_frac": 0.7}]
+)
+def test_walk_forward_parametros_invalidos(kw):
+    with pytest.raises(SplitError):
+        walk_forward(fechas(300), 20, 1, **kw)
+
+
+def test_walk_forward_rechaza_poco_historial():
+    with pytest.raises(SplitError, match="Pocas fechas"):
+        walk_forward(fechas(100), 20, 1, folds=4)
+    with pytest.raises(SplitError):
+        walk_forward(fechas(300)[::-1], 20, 1, folds=4)

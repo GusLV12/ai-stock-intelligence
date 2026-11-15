@@ -228,3 +228,48 @@ def test_comando_corre_un_experimento(ctx):
     s = out.getvalue()
     assert "PROMOVER_A_SEGUIMIENTO" in s and "Rank IC" in s and "no es una recomendación" in s.lower()
     assert QuantExperiment.objects.filter(user=user).count() == 1
+
+
+def test_retorno_total_usa_el_cierre_ajustado_cuando_esta_completo(ctx):
+    from .services import load_series
+
+    ids = sembrar(n_names=2, n=90)
+    DailyClose.objects.filter(instrument_id=ids[0]).update(
+        adj_close=models.F("close") * D("0.9")
+    )  # ajuste completo
+    DailyClose.objects.filter(instrument_id=ids[1]).update(adj_close=models.F("close") * D("0.9"))
+    DailyClose.objects.filter(instrument_id=ids[1], date=date(2024, 1, 5)).update(
+        adj_close=None
+    )  # incompleto
+    series, _ = load_series()
+    a, b = series[ids[0]][10], series[ids[1]][10]
+    assert a["adjusted"] is True and a["close"] == pytest.approx(a["raw_close"] * 0.9)
+    assert (
+        b["adjusted"] is False and b["close"] == b["raw_close"]
+    )  # no se mezclan bases dentro de un instrumento
+
+
+def test_el_resultado_declara_la_base_de_retorno(ctx):
+    c, _ = ctx
+    sembrar()
+    sin = post(c).json()["result"]["meta"]
+    assert sin["return_basis"] == {"adjusted": 0, "raw": 22} and any(
+        "sin dividendos" in x for x in sin["caveats"]
+    )
+    DailyClose.objects.update(adj_close=models.F("close"))
+    con = post(c, {"seed": 9}).json()["result"]["meta"]
+    assert con["return_basis"] == {"adjusted": 22, "raw": 0} and any(
+        "dividendos reinvertidos" in x for x in con["caveats"]
+    )
+
+
+def test_los_bloques_walk_forward_se_piden_por_api(ctx):
+    c, _ = ctx
+    sembrar()
+    d = post(c, {"folds": 3}).json()
+    assert (
+        d["result"]["meta"]["split"]["mode"] == "walk_forward"
+        and len(d["result"]["meta"]["split"]["folds"]) == 3
+    )
+    assert post(c, {"folds": 99}).status_code == 400 and post(c, {"folds": 0}).status_code == 400
+    assert c.get(f"{BASE}/overview").json()["default_folds"] == 4

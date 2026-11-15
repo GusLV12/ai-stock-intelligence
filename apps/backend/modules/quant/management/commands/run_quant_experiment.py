@@ -4,7 +4,7 @@ no genera órdenes ni recomendaciones."""
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from modules.quant.runner import DEFAULT_MODELS, MODEL_LABELS, ExperimentError
+from modules.quant.runner import DEFAULT_FOLDS, DEFAULT_MODELS, MODEL_LABELS, ExperimentError
 from modules.quant.services import create_experiment
 
 
@@ -16,6 +16,9 @@ class Command(BaseCommand):
         parser.add_argument("--horizon", type=int, default=20, choices=[5, 20])
         parser.add_argument("--models", default=",".join(DEFAULT_MODELS))
         parser.add_argument("--seed", type=int, default=0)
+        parser.add_argument(
+            "--folds", type=int, default=DEFAULT_FOLDS, help="Bloques walk-forward (1 = una sola partición)."
+        )
         parser.add_argument("--top-k", type=int, default=3, dest="top_k")
         parser.add_argument("--name", default="")
 
@@ -33,6 +36,7 @@ class Command(BaseCommand):
             "seed": o["seed"],
             "top_k": o["top_k"],
             "delay": 1,
+            "folds": o["folds"],
         }
         try:
             e = create_experiment(user, o["name"] or f"Experimento h={o['horizon']}", config)
@@ -44,8 +48,12 @@ class Command(BaseCommand):
         )
         sp = r["meta"]["split"]
         self.stdout.write(
-            f"Universo {len(r['meta']['universe'])} emisoras · entrenamiento {sp['train'][2]} fechas · validación {sp['valid'][2]} · prueba {sp['test'][2]} (purga {sp['gap_sessions']})"
+            f"Universo {len(r['meta']['universe'])} emisoras · {sp['mode']} con {len(sp['folds'])} bloque(s) · purga {sp['gap_sessions']} sesiones"
         )
+        for i, f in enumerate(sp["folds"], 1):
+            self.stdout.write(
+                f"  bloque {i}: prueba {f['test'][0]} a {f['test'][1]} ({f['test'][2]} fechas), entrenamiento {f['train'][2]}, validación {f['valid'][2]}"
+            )
         self.stdout.write("Modelo                        Rank IC valid   Rank IC prueba   t ajustado")
         for m in r["models"].values():
             if "test" not in m:
