@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "modules.imports",
     "modules.pricing",
     "modules.mcp_access",
+    "modules.assistant",
 ]
 
 MIDDLEWARE = [
