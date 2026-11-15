@@ -122,3 +122,11 @@ a.btn { display: inline-block; padding: 10px 16px; border-radius: 6px; font-weig
 select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
 .pending-list { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.8rem; }
 .row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.chat { display: flex; flex-direction: column; gap: 12px; min-height: 40dvh; }
+.bubble { max-width: 85ch; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); }
+.bubble.user { align-self: flex-end; background: var(--bg); }
+.bubble p { margin: 4px 0; white-space: pre-wrap; }
+.bubble .who { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+.composer { display: flex; gap: 8px; position: sticky; bottom: 0; padding: 8px 0; background: var(--bg); }
+.composer input { flex: 1; }

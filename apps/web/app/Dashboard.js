@@ -73,6 +73,7 @@ export default function Dashboard() {
           <p className="muted">Sesión de {user?.username}</p>
         </div>
         <nav className="actions" aria-label="Principal">
+          <Link className="btn ghost" href="/asistente">Asistente</Link>
           <Link className="btn ghost" href="/ventas">Ventas por ejercicio</Link>
           <button className="ghost" onClick={logout}>Cerrar sesión</button>
         </nav>
