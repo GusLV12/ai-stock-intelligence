@@ -102,11 +102,15 @@ def calculate_cagr(cred, mode: str, params: dict) -> dict:
     try:
         return calculate(mode, params)
     except CALC_ERRORS as exc:
-        raise McpError(str(exc) if isinstance(exc, CalcError) else "Parámetros con formato inválido.") from None
+        raise McpError(
+            str(exc) if isinstance(exc, CalcError) else "Parámetros con formato inválido."
+        ) from None
 
 
 def calculate_target_buy_price(cred, params: dict) -> dict:
     try:
         return target_buy_price(params)
     except CALC_ERRORS as exc:
-        raise McpError(str(exc) if isinstance(exc, CalcError) else "Parámetros con formato inválido.") from None
+        raise McpError(
+            str(exc) if isinstance(exc, CalcError) else "Parámetros con formato inválido."
+        ) from None

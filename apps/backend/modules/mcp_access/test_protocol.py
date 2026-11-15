@@ -45,7 +45,9 @@ def env(tmp_path_factory):
     e.pop("DB_HOST", None)
     e.pop("ASI_MCP_KEY", None)
     py = sys.executable
-    subprocess.run([py, "manage.py", "migrate", "-v", "0"], cwd=BACKEND, env=e, check=True, capture_output=True)
+    subprocess.run(
+        [py, "manage.py", "migrate", "-v", "0"], cwd=BACKEND, env=e, check=True, capture_output=True
+    )
     out = subprocess.run(
         [py, "manage.py", "shell", "-c", SEED], cwd=BACKEND, env=e, check=True, capture_output=True, text=True
     ).stdout
@@ -82,7 +84,10 @@ def test_descubrimiento_solo_lectura(env):
     }  # fmt: skip
     assert all(t.annotations and t.annotations.read_only_hint for t in tools)
     # Ninguna herramienta ESCRIBE u opera: ningún nombre empieza por un verbo de operación.
-    assert not any(t.name.split("_")[0] in {"buy", "sell", "withdraw", "transfer", "write", "create", "delete"} for t in tools)
+    assert not any(
+        t.name.split("_")[0] in {"buy", "sell", "withdraw", "transfer", "write", "create", "delete"}
+        for t in tools
+    )
     schema = next(t for t in tools if t.name == "get_transactions").input_schema
     assert set(schema["properties"]) == {"start", "end", "limit"}
 
@@ -164,14 +169,17 @@ def test_calculadora_por_mcp_y_scope_separado(env):
     assert denied.is_error and "calculators:run" in text(denied)
 
     async def bad(s):
-        return await s.call_tool("calculate_cagr", {"mode": "historical", "params": {"initial": 0, "final": 1, "years": 1}})
+        return await s.call_tool(
+            "calculate_cagr", {"mode": "historical", "params": {"initial": 0, "final": 1, "years": 1}}
+        )
 
     res = run(env, env["calc"], bad)
     assert res.is_error and "mayores que cero" in text(res)
 
     async def target(s):
         return await s.call_tool(
-            "calculate_target_buy_price", {"params": {"future_value": "161.051", "years": 5, "target_return": "0.10"}}
+            "calculate_target_buy_price",
+            {"params": {"future_value": "161.051", "years": 5, "target_return": "0.10"}},
         )
 
     assert json.loads(text(run(env, env["calc"], target)))["result"]["max_price_by_return"] == "100.000000"

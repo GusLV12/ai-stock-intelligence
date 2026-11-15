@@ -159,7 +159,9 @@ def test_error_interno_no_filtra_detalles(world):
 
 def test_comandos_de_gestion(world):
     out = StringIO()
-    call_command("create_mcp_key", user="ana", name="Claude Code", scopes="portfolio:read", accounts="GBM", stdout=out)
+    call_command(
+        "create_mcp_key", user="ana", name="Claude Code", scopes="portfolio:read", accounts="GBM", stdout=out
+    )
     key = out.getvalue().strip().splitlines()[-1]
     assert authenticate(key).name == "Claude Code"
     listing = StringIO()

@@ -14,7 +14,9 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--user", required=True, help="Nombre de usuario dueño de las cuentas.")
         parser.add_argument("--name", required=True, help="Etiqueta, p. ej. 'Claude Code laptop'.")
-        parser.add_argument("--scopes", required=True, help=f"Separados por coma. Disponibles: {', '.join(SCOPES)}")
+        parser.add_argument(
+            "--scopes", required=True, help=f"Separados por coma. Disponibles: {', '.join(SCOPES)}"
+        )
         parser.add_argument("--accounts", required=True, help="Nombres de cuenta separados por coma.")
         parser.add_argument("--days", type=int, default=90, help="Vigencia en días (1-365, por defecto 90).")
 
@@ -33,6 +35,10 @@ class Command(BaseCommand):
             )
         except ValueError as exc:
             raise CommandError(str(exc)) from exc
-        self.stdout.write(self.style.SUCCESS(f"Credencial creada: {cred.name} (id {cred.id}), vence {cred.expires_at:%Y-%m-%d}."))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Credencial creada: {cred.name} (id {cred.id}), vence {cred.expires_at:%Y-%m-%d}."
+            )
+        )
         self.stdout.write("Guarda esta clave ahora; no se volverá a mostrar:")
         self.stdout.write(key)

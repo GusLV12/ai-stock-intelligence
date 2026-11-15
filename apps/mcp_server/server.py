@@ -3,8 +3,11 @@
 No reimplementa lógica: cada herramienta pasa por modules.mcp_access.services.run_tool, que
 reautentica la clave en cada llamada, comprueba scope y cuentas autorizadas, limita el uso y audita.
 
-Uso (la clave se pasa por variable de entorno, nunca por argumentos ni archivos del repo):
+Uso local (stdio; la clave se pasa por variable de entorno, nunca por argumentos ni archivos del repo):
     ASI_MCP_KEY=asi_... python apps/mcp_server/server.py
+Uso remoto (Streamable HTTP + OAuth, este proceso es solo el SERVIDOR DE RECURSOS; el proveedor de identidad emite
+los tokens). Detrás de un proxy con HTTPS:
+    ASI_MCP_TRANSPORT=streamable-http MCP_OAUTH_ISSUER=https://idp.example.com MCP_OAUTH_AUDIENCE=https://mcp.example.com/mcp     MCP_ALLOWED_HOSTS=mcp.example.com python apps/mcp_server/server.py
 Variables opcionales de base de datos: las mismas del backend (.env, SQLITE_PATH, DB_HOST…).
 """
 
@@ -21,29 +24,66 @@ import django
 django.setup()
 
 from asgiref.sync import sync_to_async
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from modules.mcp_access import tools
-from modules.mcp_access.services import McpError, run_tool
+from modules.mcp_access.services import McpError, run_tool, run_tool_oauth
 
-READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
-
-mcp = MCPServer(
-    "ai-stock-intelligence",
-    instructions=(
-        "Consulta de solo lectura del portafolio del usuario. Los datos son contables y los precios no son "
-        "tiempo real; indica siempre la fecha y la fuente de los precios. No es asesoría de inversión. "
-        "Esta interfaz no puede comprar, vender ni mover fondos."
-    ),
+READ_ONLY = ToolAnnotations(
+    read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False
 )
+
+INSTRUCTIONS = (
+    "Consulta de solo lectura del portafolio del usuario. Los datos son contables y los precios no son "
+    "tiempo real; indica siempre la fecha y la fuente de los precios. No es asesoría de inversión. "
+    "Esta interfaz no puede comprar, vender ni mover fondos."
+)
+REMOTE = os.environ.get("ASI_MCP_TRANSPORT", "stdio") == "streamable-http"
+
+
+def build_server() -> MCPServer:
+    """Servidor local (stdio) o remoto con OAuth. En remoto TODO exige un token válido: no hay modo anónimo."""
+    if not REMOTE:
+        return MCPServer("ai-stock-intelligence", instructions=INSTRUCTIONS)
+    from modules.mcp_access.oauth import JwtTokenVerifier
+
+    issuer, audience = os.environ.get("MCP_OAUTH_ISSUER", ""), os.environ.get("MCP_OAUTH_AUDIENCE", "")
+    if not issuer or not audience:
+        raise SystemExit(
+            "MCP remoto: define MCP_OAUTH_ISSUER y MCP_OAUTH_AUDIENCE (la URL pública de este recurso)."
+        )
+    verifier = JwtTokenVerifier(issuer, audience, os.environ.get("MCP_OAUTH_JWKS_URL") or None)
+    auth = AuthSettings(
+        issuer_url=issuer, resource_server_url=audience, required_scopes=[], validate_token_resource=True
+    )
+    return MCPServer("ai-stock-intelligence", instructions=INSTRUCTIONS, token_verifier=verifier, auth=auth)
+
+
+mcp = build_server()
 
 
 async def _call(name: str, scope: str, fn, **params):
-    key = os.environ.get("ASI_MCP_KEY")
+    token = get_access_token()
     try:
-        return await sync_to_async(run_tool, thread_sensitive=True)(key, name, scope, fn, params)
+        if token is not None:  # remoto: identidad OAuth ya verificada por el SDK con nuestro verificador
+            return await sync_to_async(run_tool_oauth, thread_sensitive=True)(
+                (token.claims or {}).get("iss", ""),
+                token.subject or "",
+                token.scopes,
+                name,
+                scope,
+                fn,
+                params,
+            )
+        if REMOTE:  # nunca caer a la clave local en modo remoto
+            raise McpError("Credencial inválida, vencida o revocada.")
+        return await sync_to_async(run_tool, thread_sensitive=True)(
+            os.environ.get("ASI_MCP_KEY"), name, scope, fn, params
+        )
     except McpError as exc:
         raise ToolError(str(exc)) from None
 
@@ -68,7 +108,9 @@ async def get_transactions(start: str | None = None, end: str | None = None, lim
     """Movimientos (compras y ventas) de las cuentas autorizadas en un periodo.
     start y end son fechas ISO 8601 (por defecto, los últimos 90 días); el periodo máximo es de 366 días
     y limit va de 1 a 200. Scope: transactions:read."""
-    return await _call("get_transactions", "transactions:read", tools.get_transactions, start=start, end=end, limit=limit)
+    return await _call(
+        "get_transactions", "transactions:read", tools.get_transactions, start=start, end=end, limit=limit
+    )
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -86,8 +128,32 @@ async def calculate_target_buy_price(params: dict) -> dict:
     """Precio máximo de compra: future_value, years, target_return (decimal), dividends_per_share? y, para exigir
     también margen de seguridad, estimated_value y margin_of_safety. Escenario, no predicción.
     No lee tu cartera. Scope: calculators:run."""
-    return await _call("calculate_target_buy_price", "calculators:run", tools.calculate_target_buy_price, params=params)
+    return await _call(
+        "calculate_target_buy_price", "calculators:run", tools.calculate_target_buy_price, params=params
+    )
+
+
+def _transport_security():
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    hosts = [h for h in os.environ.get("MCP_ALLOWED_HOSTS", "").split(",") if h]
+    if not hosts:
+        raise SystemExit(
+            "MCP remoto: define MCP_ALLOWED_HOSTS (dominios permitidos, protección contra DNS rebinding)."
+        )
+    origins = [o for o in os.environ.get("MCP_ALLOWED_ORIGINS", "").split(",") if o]
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True, allowed_hosts=hosts, allowed_origins=origins
+    )
 
 
 if __name__ == "__main__":
-    mcp.run()
+    if REMOTE:
+        mcp.run(
+            "streamable-http",
+            host=os.environ.get("MCP_HOST", "127.0.0.1"),
+            port=int(os.environ.get("MCP_PORT", "8765")),
+            transport_security=_transport_security(),
+        )
+    else:
+        mcp.run()

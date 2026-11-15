@@ -89,6 +89,47 @@ def authenticate(key: str | None) -> McpCredential:
     return cred
 
 
+def authenticate_oauth(issuer: str, subject: str) -> McpCredential:
+    """Busca la credencial vinculada a (emisor, sujeto). Mismo error genérico para cualquier fallo."""
+    generic = McpAuthError("Credencial inválida, vencida o revocada.")
+    if not issuer or not subject:
+        raise generic
+    cred = (
+        McpCredential.objects.select_related("owner")
+        .filter(oauth_issuer=issuer, oauth_subject=subject)
+        .first()
+    )
+    if (
+        cred is None
+        or cred.revoked_at is not None
+        or cred.expires_at <= timezone.now()
+        or not cred.owner.is_active
+    ):
+        raise generic
+    return cred
+
+
+def create_oauth_binding(
+    owner, issuer: str, subject: str, name: str, scopes, accounts, days: int = 90
+) -> McpCredential:
+    """Vincula una identidad OAuth (emisor + sujeto del proveedor de identidad) a tus cuentas y scopes. No genera ninguna
+    clave utilizable: el hash guardado corresponde a un secreto aleatorio que se descarta."""
+    if not issuer.startswith("https://") and not issuer.startswith("http://localhost"):
+        raise ValueError("El emisor debe ser https://.")
+    if not subject or len(subject) > 255:
+        raise ValueError("Indica el sujeto (sub) del proveedor de identidad.")
+    if McpCredential.objects.filter(oauth_issuer=issuer, oauth_subject=subject).exists():
+        raise ValueError("Esa identidad ya está vinculada.")
+    cred, _ = create_credential(owner, name, scopes, accounts, days)  # valida scopes, cuentas y vigencia
+    cred.key_hash = hash_key(
+        secrets.token_urlsafe(48)
+    )  # la clave opaca generada se invalida: solo sirve OAuth
+    cred.prefix = "oauth"
+    cred.oauth_issuer, cred.oauth_subject = issuer, subject
+    cred.save(update_fields=["key_hash", "prefix", "oauth_issuer", "oauth_subject"])
+    return cred
+
+
 def authorize(cred: McpCredential, scope: str) -> None:
     if scope not in cred.scopes:
         raise McpPermissionError(f"La credencial no tiene el scope {scope}.")
@@ -127,15 +168,36 @@ def audit(cred, tool: str, status: str, params=None, detail: str = "", prefix: s
 
 
 def run_tool(key: str | None, tool: str, scope: str, fn, params: dict | None = None):
-    """Autentica -> autoriza -> limita -> ejecuta fn(cred, **params) -> audita. Lanza McpError."""
+    """Autentica (clave opaca) -> autoriza -> limita -> ejecuta fn(cred, **params) -> audita. Lanza McpError."""
     params = params or {}
     try:
         cred = authenticate(key)
     except McpAuthError:
         audit(None, tool, McpAuditLog.Status.AUTH_FAILED, params)
         raise
+    return _execute(cred, tool, scope, fn, params)
+
+
+def run_tool_oauth(
+    issuer: str, subject: str, token_scopes, tool: str, scope: str, fn, params: dict | None = None
+):
+    """Igual que run_tool pero para un token OAuth ya verificado (firma, emisor, audiencia y vigencia). El token solo
+    identifica a (emisor, sujeto); los permisos reales son la INTERSECCIÓN de los scopes del token y los de la credencial
+    vinculada, y las cuentas siempre son las de esa credencial: un token nunca amplía lo que el dueño autorizó."""
+    params = params or {}
+    try:
+        cred = authenticate_oauth(issuer, subject)
+    except McpAuthError:
+        audit(None, tool, McpAuditLog.Status.AUTH_FAILED, params, prefix="oauth")
+        raise
+    return _execute(cred, tool, scope, fn, params, token_scopes=set(token_scopes))
+
+
+def _execute(cred: McpCredential, tool: str, scope: str, fn, params: dict, token_scopes: set | None = None):
     try:
         authorize(cred, scope)
+        if token_scopes is not None and scope not in token_scopes:
+            raise McpPermissionError(f"El token no incluye el scope {scope}.")
         _check_rate(cred)
     except McpPermissionError as exc:
         audit(cred, tool, McpAuditLog.Status.DENIED, params, str(exc))
