@@ -24,6 +24,7 @@ from modules.portfolio.api import (
 )
 from modules.portfolio.dashboard import DashboardView
 from modules.pricing.api import FxView, PricesView
+from modules.valuations.api import DcfView, FairValueDetailView, FairValueView, ReverseDcfView
 
 router = SimpleRouter(trailing_slash=False)
 router.register("accounts", AccountViewSet, basename="account")
@@ -39,6 +40,10 @@ urlpatterns = [
     path("api/v1/portfolio/sales", SalesView.as_view(), name="sales"),
     path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
     path("api/v1/tax/years/<int:year>/sales", TaxYearSalesView.as_view(), name="tax-sales"),
+    path("api/v1/valuations/fair-value", FairValueView.as_view(), name="fair-value"),
+    path("api/v1/valuations/dcf", DcfView.as_view(), name="valuation-dcf"),
+    path("api/v1/valuations/reverse-dcf", ReverseDcfView.as_view(), name="valuation-reverse-dcf"),
+    path("api/v1/valuations/<int:pk>", FairValueDetailView.as_view(), name="valuation-detail"),
     path("api/v1/assistant/chat", ChatView.as_view(), name="assistant-chat"),
     path("api/v1/market/prices", PricesView.as_view(), name="market-prices"),
     path("api/v1/market/fx", FxView.as_view(), name="market-fx"),
