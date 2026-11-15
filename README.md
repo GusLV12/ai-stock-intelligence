@@ -2,7 +2,7 @@
 
 Plataforma personal de inteligencia bursátil. Documento rector: [`docs/architecture/AI_Stock_Intelligence_Plan_Maestro_2026.md`](docs/architecture/AI_Stock_Intelligence_Plan_Maestro_2026.md).
 
-Estado: **Etapa 0** (preparación y arquitectura base).
+Estado: Etapas 1–12 con trabajo entregado; pendientes y reglas del proyecto en [`CLAUDE.md`](CLAUDE.md). Guías de uso en `docs/runbooks/`.
 
 ## Backend (Django + DRF)
 
