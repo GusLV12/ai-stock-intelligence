@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "modules.instruments",
     "modules.portfolio",
     "modules.imports",
+    "modules.pricing",
 ]
 
 MIDDLEWARE = [

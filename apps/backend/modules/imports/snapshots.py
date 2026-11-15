@@ -10,6 +10,7 @@ from modules.accounts.models import InvestmentAccount
 from modules.instruments.models import Instrument, InstrumentIdentifier
 from modules.portfolio.models import TaxLot
 from modules.portfolio.services import get_position, record_buy
+from modules.pricing.services import record_price
 
 from .gbm_positions import as_of_from_filename, parse_portfolio_xlsx
 from .models import PositionSnapshot, SnapshotLine
@@ -48,7 +49,21 @@ def import_snapshot(
         cash_amount=parsed["cash"],
     )  # fmt: skip
     SnapshotLine.objects.bulk_create(SnapshotLine(snapshot=snap, **ln) for ln in parsed["lines"])
+    ingest_prices(snap)
     return snap
+
+
+def ingest_prices(snapshot: PositionSnapshot) -> int:
+    """Registra los precios del reporte como observaciones (proveedor GBM_REPORT, hora del reporte).
+    Solo para instrumentos que ya existen; es idempotente."""
+    count = 0
+    for line in snapshot.lines.all():
+        ins = _find_instrument(line.ticker)
+        if ins is None or line.market_price is None:
+            continue
+        _, created = record_price(ins, line.market_price, "GBM_REPORT", snapshot.as_of)
+        count += int(created)
+    return count
 
 
 def reconcile(snapshot: PositionSnapshot) -> list[dict]:
@@ -135,4 +150,5 @@ def apply_opening_balances(snapshot: PositionSnapshot) -> dict:
         created.append(line.ticker)
     snapshot.opening_applied_at = timezone.now()
     snapshot.save(update_fields=["opening_applied_at"])
+    ingest_prices(snapshot)  # ahora existen las emisoras nuevas
     return {"created": created, "skipped": skipped}
