@@ -31,6 +31,8 @@ def sales_for_year(user, year: int):
         pending = ["clasificación fiscal", "tipo de cambio a MXN", "costo fiscal actualizado"]
         if s.origin == "MANUAL" and not hasattr(s, "import_match"):
             pending.append("conciliación con estado de cuenta")
+        if LotDisposal.objects.filter(sale=s, lot__transaction__origin="OPENING").exists():
+            pending.append("costo de apertura sin fecha de adquisición (saldo inicial desde reporte)")
         out.append(
             {
                 "id": s.id,

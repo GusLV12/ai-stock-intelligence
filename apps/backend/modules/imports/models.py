@@ -60,3 +60,39 @@ class ManualImportMatch(models.Model):
     )
     import_row = models.OneToOneField(ImportRow, on_delete=models.PROTECT, related_name="manual_match")
     matched_at = models.DateTimeField(auto_now_add=True)
+
+
+class PositionSnapshot(models.Model):
+    """Posiciones REPORTADAS por el broker en una fecha. No es historial: sirve para conciliar
+    y, solo si el usuario lo confirma, para fijar un saldo de apertura."""
+
+    account = models.ForeignKey(InvestmentAccount, on_delete=models.PROTECT, related_name="snapshots")
+    source = models.CharField(max_length=40, default="GBM_USA_PORTFOLIO_XLSX")
+    filename = models.CharField(max_length=255, blank=True)
+    file_sha256 = models.CharField(max_length=64)
+    as_of = models.DateTimeField()
+    cash_amount = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    cash_currency = models.CharField(max_length=3, default="USD")
+    opening_applied_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["account", "file_sha256"], name="uniq_snapshot_file_per_account")
+        ]
+
+
+class SnapshotLine(models.Model):
+    snapshot = models.ForeignKey(PositionSnapshot, on_delete=models.CASCADE, related_name="lines")
+    ticker = models.CharField(max_length=20)
+    quantity = models.DecimalField(max_digits=38, decimal_places=18)
+    average_cost = models.DecimalField(max_digits=38, decimal_places=10, null=True)
+    market_price = models.DecimalField(max_digits=38, decimal_places=10, null=True)
+    market_value = models.DecimalField(max_digits=38, decimal_places=10, null=True)
+    raw = models.JSONField()
+
+    class Meta:
+        ordering = ["ticker"]
+        constraints = [
+            models.UniqueConstraint(fields=["snapshot", "ticker"], name="uniq_ticker_per_snapshot")
+        ]
