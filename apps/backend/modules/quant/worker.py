@@ -75,3 +75,67 @@ def lightgbm_scores(
                 (proc.stderr or proc.stdout or "falló sin mensaje").strip().splitlines()[-1][:300]
             )
         return json.loads(dst.read_text(encoding="utf-8"))
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# Qlib real (Alpha158 + LightGBM de Qlib) en su propio entorno Python 3.11
+QLIB_WORKER = ROOT / "workers" / "qlib" / "qlib_worker.py"
+QLIB_TIMEOUT_SECONDS = 900
+
+
+def qlib_python() -> Path | None:
+    env = os.environ.get("QUANT_QLIB_PYTHON")
+    if env:
+        return Path(env) if Path(env).exists() else None
+    for rel in ("Scripts/python.exe", "bin/python"):
+        p = ROOT / "workers" / "qlib" / ".venv311" / rel
+        if p.exists():
+            return p
+    return None
+
+
+def qlib_available() -> bool:
+    return qlib_python() is not None and QLIB_WORKER.exists()
+
+
+def qlib_scores(series: dict, train: list, valid: list, horizon: int, delay: int, seed: int) -> dict:
+    """Entrena Alpha158 + LightGBM de Qlib con las fechas `train`, para con `valid` y devuelve {(fecha, instrumento): puntaje}
+    para todas las fechas desde el inicio de `valid` hasta el final de los datos (validación, prueba y fecha más reciente).
+    Los factores de Qlib se normalizan solo con la ventana de entrenamiento (no con datos posteriores)."""
+    py = qlib_python()
+    if py is None or not QLIB_WORKER.exists():
+        raise WorkerUnavailable("El entorno de Qlib no está instalado (ver workers/qlib/README.md).")
+    bars, missing = {}, 0
+    for inst, rows in series.items():
+        out = []
+        for b in rows:
+            c = b["close"]
+            if b.get("open") is None or b.get("high") is None or b.get("low") is None:
+                missing += 1
+            out.append({"date": str(b["date"]), "open": b.get("open") or c, "high": b.get("high") or c, "low": b.get("low") or c,
+                        "close": c, "volume": float(b.get("volume") or 0), "factor": 1.0})  # fmt: skip
+        bars[f"I{inst}"] = out
+    all_dates = sorted({b["date"] for rows in series.values() for b in rows})
+    job = {"bars": bars, "horizon": horizon, "delay": delay, "seed": seed, "start": str(all_dates[0]), "end": str(all_dates[-1]),
+           "segments": {"train": [str(train[0]), str(train[-1])], "valid": [str(valid[0]), str(valid[-1])], "predict": [str(valid[0]), str(all_dates[-1])]}}  # fmt: skip
+    with tempfile.TemporaryDirectory() as tmp:
+        src, dst = Path(tmp) / "in.json", Path(tmp) / "out.json"
+        src.write_text(json.dumps(job), encoding="utf-8")
+        try:
+            proc = subprocess.run(  # nosec B603 - sin shell; ejecutable y archivos son rutas controladas por nosotros
+                [str(py), "-I", str(QLIB_WORKER), str(src), str(dst)],
+                capture_output=True,
+                text=True,
+                timeout=QLIB_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise WorkerUnavailable("Qlib excedió el tiempo límite.") from exc
+        if proc.returncode != 0 or not dst.exists():
+            raise WorkerUnavailable(
+                (proc.stderr or proc.stdout or "falló sin mensaje").strip().splitlines()[-1][:300]
+            )
+        res = json.loads(dst.read_text(encoding="utf-8"))
+    res["scores"] = {(p["date"], int(p["inst"][1:])): p["score"] for p in res.pop("predictions")}
+    res["bars_without_ohlc"] = missing
+    return res

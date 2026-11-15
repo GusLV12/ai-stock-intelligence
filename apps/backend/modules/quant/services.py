@@ -13,6 +13,12 @@ from .runner import QUANT_VERSION, panel_hash, run_experiment
 MIN_BARS = MIN_HISTORY + 10
 
 
+def _ohlc(r, adjusted: bool) -> dict:
+    """open/high/low escalados con el mismo factor de ajuste que el cierre, para que las velas sean coherentes."""
+    k = float(r.adj_close / r.close) if adjusted else 1.0
+    return {f: (None if getattr(r, f) is None else float(getattr(r, f)) * k) for f in ("open", "high", "low")}
+
+
 def load_series(as_of: date | None = None, instrument_ids: list[int] | None = None) -> tuple[dict, dict]:
     """Velas por instrumento (proveedor con más datos, para no mezclar ajustes distintos), hasta `as_of`.
     `close` es el cierre ajustado por dividendos cuando el instrumento lo tiene completo (retorno total).
@@ -39,6 +45,7 @@ def load_series(as_of: date | None = None, instrument_ids: list[int] | None = No
                     "raw_close": float(r.close),
                     "volume": r.volume,
                     "adjusted": adjusted,
+                    **_ohlc(r, adjusted),
                 }
                 for r in rows
             ]

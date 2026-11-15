@@ -29,3 +29,6 @@ tests/fixtures/real/
 Thumbs.db
 .idea/
 .vscode/
+
+# Qlib / MLflow (registros locales)
+mlruns/

@@ -20,14 +20,17 @@ QUANT_VERSION = "1.1.0"
 DEFAULT_FOLDS = 4
 MAX_FOLDS = 8
 HORIZONS = (5, 20)
-LEARNED = ("ridge", "lightgbm")
+LEARNED = ("ridge", "lightgbm", "qlib_lgbm")
 MODEL_LABELS = {
     "ridge": "Regresión ridge",
     "lightgbm": "LightGBM",
+    "qlib_lgbm": "Qlib Alpha158 + LightGBM",
     **{k: v[0] for k, v in scorers.BASELINES.items()},
     "random": "Aleatorio (control)",
 }
-DEFAULT_MODELS = [*scorers.BASELINES, "random", *LEARNED]
+ALL_MODELS = [*scorers.BASELINES, "random", *LEARNED]
+HEAVY_MODELS = ("qlib_lgbm",)  # lentos (varios minutos): se piden de forma explícita
+DEFAULT_MODELS = [m for m in ALL_MODELS if m not in HEAVY_MODELS]
 
 
 class ExperimentError(ValueError):
@@ -74,7 +77,7 @@ def panel_hash(series: dict, config: dict) -> str:
     return dataset_hash(panel)
 
 
-def _fit_models(models, train, valid, predict, seed, horizon):
+def _fit_models(models, train, valid, predict, seed, horizon, ctx=None):
     """Ajusta cada modelo con `train`, elige hiperparámetros con `valid` y puntúa cada conjunto de `predict`
     ({nombre: filas}). Devuelve {modelo: {"scores": {nombre: [...]}, "info": {...}}} o {"unavailable": ...}."""
     out = {}
@@ -103,6 +106,21 @@ def _fit_models(models, train, valid, predict, seed, horizon):
             out[name] = {"scores": {k: r["predictions"].get(k, []) for k in predict},
                          "info": {"kind": "learned", "best_iteration": r["best_iteration"],
                                   "feature_importance_gain": r["feature_importance_gain"], "versions": r["versions"]}}  # fmt: skip
+        elif name == "qlib_lgbm":
+            try:
+                r = worker.qlib_scores(
+                    ctx["series"], ctx["train_dates"], ctx["valid_dates"], horizon, ctx["delay"], seed
+                )
+            except worker.WorkerUnavailable as exc:
+                out[name] = {"unavailable": str(exc)}
+                continue
+            sc = r["scores"]
+            absent = sum(
+                1 for rows in predict.values() for x in rows if (str(x["date"]), x["inst"]) not in sc
+            )
+            out[name] = {"scores": {k: [sc.get((str(x["date"]), x["inst"]), 0.0) for x in rows] for k, rows in predict.items()},
+                         "info": {"kind": "learned", "versions": r["versions"], "alpha158_features": r["features"],
+                                  "rows_without_score": absent, "bars_without_ohlc": r["bars_without_ohlc"]}}  # fmt: skip
     return out
 
 
@@ -174,7 +192,8 @@ def run_experiment(
         predict = {"valid": seg["valid"], "test": seg["test"]}
         if live_split is None:
             predict["live"] = live  # una sola partición: la misma que se evaluó
-        fitted = _fit_models(models, seg["train"], seg["valid"], predict, seed, horizon)
+        ctx = {"series": series, "train_dates": f["train"], "valid_dates": f["valid"], "delay": delay}
+        fitted = _fit_models(models, seg["train"], seg["valid"], predict, seed, horizon, ctx)
         for name, fit in fitted.items():
             if "unavailable" in fit:
                 out_models[name] = {

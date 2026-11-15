@@ -12,7 +12,16 @@ from modules.valuations.fair_value import plain
 from . import promotion, worker
 from .features import FEATURES
 from .models import QuantExperiment
-from .runner import DEFAULT_FOLDS, DEFAULT_MODELS, HORIZONS, MAX_FOLDS, MODEL_LABELS, ExperimentError
+from .runner import (
+    ALL_MODELS,
+    DEFAULT_FOLDS,
+    DEFAULT_MODELS,
+    HEAVY_MODELS,
+    HORIZONS,
+    MAX_FOLDS,
+    MODEL_LABELS,
+    ExperimentError,
+)
 from .services import MIN_BARS, create_experiment, load_series, verify
 
 DISCLAIMER = (
@@ -64,8 +73,8 @@ class OverviewView(APIView):
             plain(
                 {
                     "universe": [{"instrument": i, "ticker": tickers.get(i, str(i)), "bars": len(b), "last": b[-1]["date"]} for i, b in sorted(series.items())],
-                    "min_bars": MIN_BARS, "last_bar": last, "lightgbm_available": worker.available(), "horizons": list(HORIZONS), "default_folds": DEFAULT_FOLDS, "max_folds": MAX_FOLDS,
-                    "models": [{"id": m, "label": MODEL_LABELS[m]} for m in DEFAULT_MODELS], "features": FEATURES,
+                    "min_bars": MIN_BARS, "last_bar": last, "lightgbm_available": worker.available(), "qlib_available": worker.qlib_available(), "horizons": list(HORIZONS), "default_folds": DEFAULT_FOLDS, "max_folds": MAX_FOLDS,
+                    "models": [{"id": m, "label": MODEL_LABELS[m], "default": m in DEFAULT_MODELS, "heavy": m in HEAVY_MODELS} for m in ALL_MODELS], "features": FEATURES,
                     "criteria": asdict(promotion.Criteria()), "disclaimer": DISCLAIMER,
                 }
             )

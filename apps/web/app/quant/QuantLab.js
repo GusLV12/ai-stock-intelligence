@@ -219,7 +219,7 @@ export default function QuantLab() {
     return () => { alive = false; };
   }, [guard, reload]);
 
-  const chosen = models ?? overview?.models.map((m) => m.id) ?? [];
+  const chosen = models ?? overview?.models.filter((m) => m.default).map((m) => m.id) ?? [];
   const toggle = (id) => setModels(chosen.includes(id) ? chosen.filter((m) => m !== id) : [...chosen, id]);
 
   const run = async (e) => {
@@ -257,6 +257,7 @@ export default function QuantLab() {
           <div className="stats">
             <div className="card stat"><span className="label">Emisoras con historial</span><strong>{overview.universe.length}</strong><span className="sub">mínimo {overview.criteria.min_universe} para poder concluir</span></div>
             <div className="card stat"><span className="label">Último cierre</span><strong>{overview.last_bar ?? "—"}</strong></div>
+            <div className="card stat"><span className="label">Qlib</span><strong>{overview.qlib_available ? "Disponible" : "No instalado"}</strong><span className="sub">Python 3.11 aislado en workers/qlib</span></div>
             <div className="card stat"><span className="label">LightGBM</span><strong>{overview.lightgbm_available ? "Disponible" : "No instalado"}</strong><span className="sub">entorno aislado en workers/qlib</span></div>
           </div>
           {small && <p className="notice warn">Con {overview.universe.length} emisoras el laboratorio solo puede decir «datos insuficientes»: pocas emisoras no permiten distinguir señal de ruido. Descarga historial largo de más emisoras (<code>refresh_price_history --range 5y</code>) antes de interpretar resultados.</p>}
@@ -275,7 +276,7 @@ export default function QuantLab() {
           <fieldset className="row-actions" style={{ border: 0, padding: 0 }}>
             <legend className="muted small">Modelos (hace falta al menos uno que aprenda: ridge o LightGBM)</legend>
             {(overview?.models ?? []).map((m) => (
-              <label key={m.id} className="small"><input type="checkbox" checked={chosen.includes(m.id)} onChange={() => toggle(m.id)} /> {m.label}</label>
+              <label key={m.id} className="small"><input type="checkbox" checked={chosen.includes(m.id)} onChange={() => toggle(m.id)} /> {m.label}{m.heavy ? " (lento: varios minutos)" : ""}{m.heavy && !overview.qlib_available ? " · no instalado" : ""}</label>
             ))}
           </fieldset>
           <div className="row-actions">
