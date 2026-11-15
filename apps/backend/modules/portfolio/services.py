@@ -51,6 +51,7 @@ def record_buy(
     fees: Decimal = ZERO,
     currency: str | None = None,
     broker_reference: str = "",
+    origin: str = "MANUAL",
 ) -> Transaction:
     currency = currency or instrument.currency
     _check_quantity(instrument, quantity)
@@ -67,6 +68,7 @@ def record_buy(
         currency=currency,
         executed_at=executed_at,
         broker_reference=broker_reference,
+        origin=origin,
     )
     TaxLot.objects.create(
         transaction=tx,
@@ -92,6 +94,7 @@ def record_sell(
     fees: Decimal = ZERO,
     currency: str | None = None,
     broker_reference: str = "",
+    origin: str = "MANUAL",
 ) -> Transaction:
     currency = currency or instrument.currency
     _check_quantity(instrument, quantity)
@@ -118,6 +121,7 @@ def record_sell(
         currency=currency,
         executed_at=executed_at,
         broker_reference=broker_reference,
+        origin=origin,
     )
 
     pending = quantity

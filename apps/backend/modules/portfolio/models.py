@@ -35,6 +35,7 @@ class Transaction(models.Model):
     settled_at = models.DateTimeField(null=True, blank=True)
     broker_reference = models.CharField(max_length=100, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.CONFIRMED)
+    origin = models.CharField(max_length=10, default="MANUAL")  # MANUAL | IMPORT
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = ImmutableQuerySet.as_manager()
