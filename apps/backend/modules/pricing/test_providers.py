@@ -177,5 +177,16 @@ def test_comando_sin_claves_se_omite_sin_fallar(db, monkeypatch):
     monkeypatch.delenv("TWELVE_DATA_API_KEY", raising=False)
     monkeypatch.delenv("BANXICO_TOKEN", raising=False)
     out = StringIO()
+    call_command("refresh_market_data", "--no-fallback", stdout=out)  # sin respaldo ni claves: nada que consultar
+    assert out.getvalue().count("omitido") == 2
+    monkeypatch.setenv("YAHOO_FALLBACK", "false")
+    out = StringIO()
     call_command("refresh_market_data", stdout=out)
-    assert "omitido" in out.getvalue() and out.getvalue().count("omitido") == 2
+    assert out.getvalue().count("omitido") == 2
+
+
+def test_la_red_esta_bloqueada_en_pruebas():
+    import urllib.request
+
+    with pytest.raises(OSError, match="bloqueada"):
+        urllib.request.urlopen("https://example.com")

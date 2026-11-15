@@ -5,6 +5,9 @@ from modules.instruments.models import Instrument
 
 from .models import FxRate, MarketPrice
 
+# Fuentes de respaldo no oficiales: se muestran con aviso porque pueden retrasarse o fallar sin aviso.
+FALLBACK_PROVIDERS = {"YAHOO_UNOFFICIAL"}
+
 
 class PricingError(ValueError):
     pass

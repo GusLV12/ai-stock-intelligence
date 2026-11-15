@@ -87,6 +87,8 @@ export default function Dashboard() {
           {new Date(data.prices.newest_at).toLocaleString("es-MX")} y el más antiguo tiene{" "}
           {data.prices.oldest_age_hours} h{stale ? " — desactualizados" : ""}.
           {data.unpriced_positions > 0 && ` ${data.unpriced_positions} posición(es) sin precio.`}
+          {data.prices.uses_fallback &&
+            " Incluye una fuente alterna no oficial (Yahoo Finance): puede retrasarse, cambiar o fallar sin aviso; verifica contra tu broker."}
         </p>
       )}
 
@@ -112,7 +114,7 @@ export default function Dashboard() {
               <Stat
                 label="Total en MXN (referencia)"
                 value={fmtMoney(data.fx.total_value_mxn, "MXN")}
-                sub={`${data.fx.pair} ${data.fx.rate} · ${data.fx.provider}`}
+                sub={`${data.fx.pair} ${data.fx.rate} · ${data.fx.provider}${data.fx.is_fallback ? " (respaldo no oficial)" : ""}`}
               />
             )}
             {perf && (

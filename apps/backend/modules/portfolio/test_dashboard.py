@@ -103,3 +103,16 @@ def test_xirr_no_evaluable_con_saldo_de_apertura(ctx):
     record_price(aaa, D(110), "MANUAL", REPORT)
     perf = client.get("/api/v1/portfolio/dashboard").json()["performance"]["USD"]
     assert perf["xirr_pct"] is None and "apertura" in perf["reason"]
+
+
+def test_dashboard_avisa_cuando_usa_una_fuente_de_respaldo(ctx):
+    client, acc = ctx
+    aaa = make_stock("AAA")
+    record_buy(account=acc, instrument=aaa, quantity=D(2), price=D(100), executed_at=T0)
+    record_price(aaa, D(150), "MANUAL", REPORT)
+    d = client.get("/api/v1/portfolio/dashboard").json()
+    assert d["prices"]["uses_fallback"] is False
+    record_price(aaa, D(151), "YAHOO_UNOFFICIAL", datetime(2026, 11, 14, tzinfo=UTC))
+    record_fx("USD", "MXN", D("18.5"), "YAHOO_UNOFFICIAL", REPORT)
+    d = client.get("/api/v1/portfolio/dashboard").json()
+    assert d["prices"]["uses_fallback"] is True and d["fx"]["is_fallback"] is True

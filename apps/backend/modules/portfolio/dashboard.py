@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from modules.accounts.models import InvestmentAccount
 from modules.imports.models import PositionSnapshot
 from modules.instruments.models import InstrumentIdentifier
-from modules.pricing.services import latest_fx, latest_price
+from modules.pricing.services import FALLBACK_PROVIDERS, latest_fx, latest_price
 
 from .api import _positions_for
 from .performance import money_weighted_return
@@ -102,6 +102,7 @@ def build_dashboard(user, account_ids=None) -> dict:
             "observed_at": fx.observed_at,
             "age_hours": _age_hours(now, fx.observed_at),
             "total_value_mxn": _q(mv * fx.rate),
+            "is_fallback": fx.provider in FALLBACK_PROVIDERS,
             "note": "Tipo de cambio de referencia; no es el que aplica el broker.",
         }
 
@@ -142,6 +143,7 @@ def build_dashboard(user, account_ids=None) -> dict:
 
     prices = {
         "providers": sorted({p.provider for p in observed}),
+        "uses_fallback": any(p.provider in FALLBACK_PROVIDERS for p in observed),
         "newest_at": max((p.observed_at for p in observed), default=None),
         "oldest_at": min((p.observed_at for p in observed), default=None),
         "oldest_age_hours": _age_hours(now, min(p.observed_at for p in observed)) if observed else None,
