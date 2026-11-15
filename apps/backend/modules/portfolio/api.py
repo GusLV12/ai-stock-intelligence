@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from modules.accounts.models import InvestmentAccount
 from modules.instruments.models import Instrument
 
+from .fiscal import sales_for_year, year_summary
 from .models import LotDisposal, TaxLot, Transaction
 from .services import LedgerError, get_position, record_buy, record_sell
 
@@ -137,6 +138,16 @@ class SalesView(APIView):
                 }
             )
         return Response(out)
+
+
+class TaxYearSummaryView(APIView):
+    def get(self, request, year):
+        return Response(year_summary(request.user, year))
+
+
+class TaxYearSalesView(APIView):
+    def get(self, request, year):
+        return Response(_stringify(sales_for_year(request.user, year)))
 
 
 def _stringify(rows):

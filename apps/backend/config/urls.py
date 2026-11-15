@@ -5,7 +5,14 @@ from rest_framework.routers import SimpleRouter
 from modules.accounts.api import AccountViewSet
 from modules.imports.api import ExportView, ImportConfirmView, ImportDetailView, ImportsView
 from modules.instruments.api import InstrumentViewSet
-from modules.portfolio.api import PositionsView, SalesView, SummaryView, TransactionsView
+from modules.portfolio.api import (
+    PositionsView,
+    SalesView,
+    SummaryView,
+    TaxYearSalesView,
+    TaxYearSummaryView,
+    TransactionsView,
+)
 
 router = SimpleRouter(trailing_slash=False)
 router.register("accounts", AccountViewSet, basename="account")
@@ -18,6 +25,8 @@ urlpatterns = [
     path("api/v1/portfolio/positions", PositionsView.as_view(), name="positions"),
     path("api/v1/portfolio/summary", SummaryView.as_view(), name="summary"),
     path("api/v1/portfolio/sales", SalesView.as_view(), name="sales"),
+    path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
+    path("api/v1/tax/years/<int:year>/sales", TaxYearSalesView.as_view(), name="tax-sales"),
     path("api/v1/imports", ImportsView.as_view(), name="imports"),
     path("api/v1/imports/<int:pk>", ImportDetailView.as_view(), name="import-detail"),
     path("api/v1/imports/<int:pk>/confirm", ImportConfirmView.as_view(), name="import-confirm"),
