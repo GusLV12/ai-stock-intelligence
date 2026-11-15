@@ -17,6 +17,9 @@ class DailyClose(models.Model):
     high = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
     low = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
     volume = models.BigIntegerField(null=True, blank=True)
+    # Cierre ajustado por dividendos (retorno total) según el proveedor. Cambia hacia atrás con cada dividendo nuevo,
+    # por eso se actualiza en cada descarga; `close` (el cierre real) nunca se modifica.
+    adj_close = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
     currency = models.CharField(max_length=3)
     provider = models.CharField(max_length=40)
     created_at = models.DateTimeField(auto_now_add=True)

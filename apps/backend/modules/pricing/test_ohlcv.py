@@ -34,7 +34,7 @@ def test_velas_completas_con_volumen():
     out = provider(resp).fetch_history("AAA", "1mo")
     bars = {b["date"]: b for b in out["ohlcv"]}
     assert bars[date(2026, 11, 10)] == {"date": date(2026, 11, 10), "close": D("11.0000"), "open": D("10.0000"),
-                                        "high": D("11.5000"), "low": D("9.5000"), "volume": 1000}  # fmt: skip
+                                        "high": D("11.5000"), "low": D("9.5000"), "volume": 1000, "adj_close": None}  # fmt: skip
     assert [c for _, c in out["bars"]] == [D("11.0000"), D("11.8000")]  # la forma anterior se conserva
 
 

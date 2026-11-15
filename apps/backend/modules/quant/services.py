@@ -15,6 +15,7 @@ MIN_BARS = MIN_HISTORY + 10
 
 def load_series(as_of: date | None = None, instrument_ids: list[int] | None = None) -> tuple[dict, dict]:
     """Velas por instrumento (proveedor con más datos, para no mezclar ajustes distintos), hasta `as_of`.
+    `close` es el cierre ajustado por dividendos cuando el instrumento lo tiene completo (retorno total).
     Devuelve (series, tickers). Solo instrumentos con historial suficiente."""
     qs = DailyClose.objects.order_by("instrument_id", "date")
     if instrument_ids is not None:
@@ -28,7 +29,19 @@ def load_series(as_of: date | None = None, instrument_ids: list[int] | None = No
     for inst, providers in by_inst.items():
         rows = providers[max(providers, key=lambda p: len(providers[p]))]
         if len(rows) >= MIN_BARS:
-            series[inst] = [{"date": r.date, "close": float(r.close), "volume": r.volume} for r in rows]
+            # Retorno total: si TODAS las barras tienen cierre ajustado por dividendos se usa ese; si falta alguna se
+            # usa el cierre real de todo el instrumento (no se mezclan bases) y se declara en el resultado.
+            adjusted = all(r.adj_close is not None for r in rows)
+            series[inst] = [
+                {
+                    "date": r.date,
+                    "close": float(r.adj_close if adjusted else r.close),
+                    "raw_close": float(r.close),
+                    "volume": r.volume,
+                    "adjusted": adjusted,
+                }
+                for r in rows
+            ]
     tickers = dict(
         InstrumentIdentifier.objects.filter(kind="TICKER", instrument_id__in=list(series)).values_list(
             "instrument_id", "value"

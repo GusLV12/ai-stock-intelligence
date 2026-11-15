@@ -44,7 +44,7 @@ def _adv(series, inst, upto_date, window=20):
     bars = [b for b in series[inst] if b["date"] <= upto_date][-window:]
     if len(bars) < window or any(b.get("volume") is None for b in bars):
         return None
-    return sum(float(b["close"]) * b["volume"] for b in bars) / window
+    return sum(float(b.get("raw_close", b["close"])) * b["volume"] for b in bars) / window
 
 
 def _equity_stats(equity: list[float]) -> dict:

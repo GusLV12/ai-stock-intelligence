@@ -255,7 +255,11 @@ class YahooProvider:
             except (KeyError, IndexError, TypeError):
                 last = ProviderError("Respuesta de Yahoo con formato inesperado.", transient=True)
                 continue
-            return self._parse_bars(symbol, stamps, closes, meta, quote)
+            try:  # cierre ajustado por dividendos (opcional: no todos los instrumentos lo traen)
+                adj = res["indicators"]["adjclose"][0]["adjclose"]
+            except (KeyError, IndexError, TypeError):
+                adj = None
+            return self._parse_bars(symbol, stamps, closes, meta, quote, adj)
         raise last or ProviderError("Yahoo no disponible.", transient=True)
 
     @staticmethod
@@ -268,6 +272,14 @@ class YahooProvider:
         except (TypeError, ValueError, ProviderError):
             return None
         return d if d > 0 else None
+
+    def _adj(self, adj, i: int, close: Decimal):
+        """Cierre ajustado por dividendos. Debe ser positivo y no mayor que el cierre (un dividendo solo lo reduce);
+        si no es coherente se descarta y esa barra queda sin ajuste."""
+        if not isinstance(adj, list) or i >= len(adj):
+            return None
+        v = self._price(adj[i])
+        return v if v is not None and v <= close * Decimal("1.001") else None
 
     def _ohlcv(self, quote: dict | None, i: int, close: Decimal) -> dict:
         """Velas completas solo si son coherentes (low <= open,close <= high); si no, solo el cierre."""
@@ -289,7 +301,7 @@ class YahooProvider:
             volume = None
         return {"open": o, "high": h, "low": low, "volume": volume}
 
-    def _parse_bars(self, symbol, stamps, closes, meta, quote=None) -> dict:
+    def _parse_bars(self, symbol, stamps, closes, meta, quote=None, adj=None) -> dict:
         currency = str(meta.get("currency") or "").upper()
         if len(currency) != 3:
             raise ProviderError(f"Falta la moneda de {symbol} en Yahoo.")
@@ -310,7 +322,7 @@ class YahooProvider:
             if value <= 0 or day >= today_local:  # sin cierres inválidos ni la barra de hoy
                 continue
             by_date[day] = value  # una barra por día; la posterior gana
-            full[day] = {"date": day, "close": value, **self._ohlcv(quote, i, value)}
+            full[day] = {"date": day, "close": value, "adj_close": self._adj(adj, i, value), **self._ohlcv(quote, i, value)}
         if not by_date:
             raise ProviderError(f"Yahoo no devolvió cierres válidos para {symbol}.")
         return {"currency": currency, "bars": sorted(by_date.items()), "ohlcv": [full[d] for d in sorted(full)]}

@@ -36,15 +36,23 @@ def refresh_history(provider, range_: str = "1y") -> dict:
                     DailyClose(
                         instrument=instrument, date=day, close=close, currency=data["currency"], provider=provider.name,
                         open=bar.get("open"), high=bar.get("high"), low=bar.get("low"), volume=bar.get("volume"),
+                        adj_close=bar.get("adj_close"),
                     )
                 )
-            elif row.high is None and bar.get("high") is not None:
+                continue
+            touched = False
+            if row.high is None and bar.get("high") is not None:
                 # Cierre ya guardado sin vela: se completa open/high/low/volume sin tocar el cierre.
                 row.open, row.high, row.low, row.volume = bar["open"], bar["high"], bar["low"], bar["volume"]
+                touched = True
+            if bar.get("adj_close") is not None and row.adj_close != bar["adj_close"]:
+                row.adj_close = bar["adj_close"]  # el ajuste por dividendos se corrige hacia atrás con cada pago nuevo
+                touched = True
+            if touched:
                 fill.append(row)
         DailyClose.objects.bulk_create(new)
         if fill:
-            DailyClose.objects.bulk_update(fill, ["open", "high", "low", "volume"])
+            DailyClose.objects.bulk_update(fill, ["open", "high", "low", "volume", "adj_close"])
         if new or fill:
             result["saved"][ticker] = len(new) + len(fill)
         else:
