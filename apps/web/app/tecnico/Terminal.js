@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CandlestickSeries, createChart, HistogramSeries, LineSeries } from "lightweight-charts";
 import { api, ApiError } from "../lib/api";
 
-const TABS = [["daily", "Diario"], ["intraday", "Intradía"], ["plan", "Plan de operación"], ["alerts", "Alertas"]];
+const TABS = [["daily", "Diario"], ["intraday", "Intradía"], ["plan", "Plan de operación"], ["alerts", "Alertas"], ["liquidity", "Liquidez"]];
 const num = (v) => (String(v ?? "").trim() === "" ? undefined : String(v).trim().replace(",", "."));
 const money = (v) => (v == null ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 }));
 const SIGNAL_IDS = ["breakout", "reclaim_ma", "oversold", "oversold_bounce", "trend_up", "macd_bull_cross", "volume_spike", "near_level"];
@@ -354,6 +354,98 @@ function Alerts({ symbols }) {
   );
 }
 
+/* -------------------------------- Liquidez -------------------------------- */
+const TIER_LABEL = { alta: "alta", media: "media", baja: "baja", "muy baja": "muy baja" };
+const fmtInt = (v) => (v == null ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 }));
+const fmtPct = (v) => (v == null ? "—" : `${(Number(v) * 100).toLocaleString("en-US", { maximumFractionDigits: 3 })} %`);
+
+function SpreadCell({ s }) {
+  if (!s || s.bps == null) return <span className="muted">no evaluable</span>;
+  return s.resolvable ? <>{Number(s.bps).toFixed(1)} pb <span className="muted">(±{Number(s.se_bps).toFixed(1)})</span></> : <span className="muted" title={s.note}>≈ 0 (no distinguible)</span>;
+}
+
+function Liquidity({ ticker }) {
+  const guard = useGuard();
+  const [port, setPort] = useState({ status: "loading" });
+  const [qty, setQty] = useState("100");
+  const [one, setOne] = useState({ status: "idle" });
+
+  useEffect(() => {
+    let alive = true;
+    api("/api/v1/technical/liquidity/portfolio")
+      .then((data) => alive && setPort({ status: "ready", data }))
+      .catch((err) => { if (alive && !guard(err)) setPort({ status: "error", message: err.message }); });
+    return () => { alive = false; };
+  }, [guard]);
+
+  async function check(e) {
+    e.preventDefault();
+    setOne({ status: "loading" });
+    try {
+      const q = num(qty);
+      setOne({ status: "ready", data: await api(`/api/v1/technical/liquidity?ticker=${encodeURIComponent(ticker)}${q ? `&quantity=${encodeURIComponent(q)}` : ""}`) });
+    } catch (err) {
+      if (!guard(err)) setOne({ status: "error", message: err.message });
+    }
+  }
+
+  const d = port.data;
+  const o = one.data;
+  return (
+    <>
+      <div className="card">
+        <h2>Liquidez de tu cartera</h2>
+        <p className="muted">Tamaño de cada posición frente al volumen diario negociado (ventana de 20 días). Estimación con cierres diarios: no hay libro de órdenes.</p>
+        {port.status === "loading" && <p>Cargando…</p>}
+        {port.status === "error" && <p role="alert" className="error">{port.message}</p>}
+        {d && (
+          <>
+            <p>{d.summary.positions} posiciones · {d.summary.evaluable} evaluables · {d.summary.size_high} con tamaño alto · {d.summary.size_visible} con tamaño visible{d.summary.not_evaluable.length ? ` · sin datos: ${d.summary.not_evaluable.join(", ")}` : ""}</p>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th scope="col">Emisora</th><th scope="col">Liquidez</th><th scope="col" className="num">Volumen diario (USD)</th><th scope="col" className="num">Tu posición / volumen</th><th scope="col" className="num">Días para operarla</th><th scope="col">Spread estimado</th></tr></thead>
+                <tbody>
+                  {d.rows.map((r) => (
+                    <tr key={r.ticker}>
+                      <th scope="row">{r.ticker}</th>
+                      <td>{r.evaluable ? TIER_LABEL[r.tier] : <span className="muted" title={r.reason}>sin datos</span>}</td>
+                      <td className="num">{r.evaluable ? fmtInt(r.dollar_adv) : "—"}</td>
+                      <td className="num">{r.evaluable ? fmtPct(r.position?.share_of_adv) : "—"}</td>
+                      <td className="num">{r.evaluable ? Number(r.position?.days_to_trade_at_participation ?? 0).toFixed(2) : "—"}</td>
+                      <td>{r.evaluable ? <SpreadCell s={r.spread_estimate} /> : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="muted">«Días para operarla» supone consumir como máximo {Math.round(d.participation_assumed * 100)} % del volumen diario. {d.disclaimer}</p>
+          </>
+        )}
+      </div>
+
+      <form className="card" onSubmit={check} aria-label="Consulta de orden hipotética">
+        <h2>¿Y si operara N títulos de {ticker || "—"}?</h2>
+        <div className="row-actions">
+          <label htmlFor="liq-qty">Títulos</label>
+          <input id="liq-qty" value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" />
+          <button type="submit" disabled={!ticker || one.status === "loading"}>Calcular</button>
+        </div>
+        {one.status === "error" && <p role="alert" className="error">{one.message}</p>}
+        {o && !o.evaluable && <p>{o.reason}</p>}
+        {o && o.evaluable && (
+          <ul className="pending-list">
+            <li>Volumen diario promedio: {fmtInt(o.adv_shares)} títulos ({fmtInt(o.dollar_adv)} USD) · liquidez {o.tier}.</li>
+            {o.position && <li>Esa cantidad es {fmtPct(o.position.share_of_adv)} del volumen diario (tamaño {o.position.size_flag}); tardarías ≈ {o.position.days_to_trade_at_participation} días con {Math.round(o.position.participation_assumed * 100)} % de participación.</li>}
+            {o.position?.impact_sqrt_bps != null && <li>Impacto aproximado (raíz cuadrada, coeficiente 1): ≈ {o.position.impact_sqrt_bps} pb. Es un orden de magnitud, no una predicción de costo.</li>}
+            <li>Spread: <SpreadCell s={o.spread_estimate} /> en {o.spread_estimate.window_days} días.</li>
+            <li className="muted">{o.caveats.join(" ")}</li>
+          </ul>
+        )}
+      </form>
+    </>
+  );
+}
+
 /* ---------------------------------- Raíz ---------------------------------- */
 export default function Terminal() {
   const guard = useGuard();
@@ -398,6 +490,7 @@ export default function Terminal() {
       {tab === "intraday" && <Intraday key={ticker} ticker={ticker} />}
       {tab === "plan" && <Plan />}
       {tab === "alerts" && <Alerts symbols={symbols} />}
+      {tab === "liquidity" && <Liquidity key={ticker} ticker={ticker} />}
     </main>
   );
 }

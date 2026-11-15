@@ -34,7 +34,7 @@ export default defineConfig({
     { name: "setup", testMatch: /setup\.mjs/ },
     {
       name: "app",
-      testMatch: /(portfolio|quant|paper)\.spec\.mjs/,
+      testMatch: /(portfolio|quant|paper|liquidity)\.spec\.mjs/,
       dependencies: ["setup"],
       use: { storageState: STATE },
     },
