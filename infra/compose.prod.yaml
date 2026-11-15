@@ -85,10 +85,10 @@ services:
       ASI_MCP_TRANSPORT: streamable-http
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8765"
-      MCP_OAUTH_ISSUER: ${MCP_OAUTH_ISSUER:?define MCP_OAUTH_ISSUER (tu proveedor de identidad, https)}
-      MCP_OAUTH_AUDIENCE: https://${MCP_DOMAIN:?define MCP_DOMAIN}/mcp
+      MCP_OAUTH_ISSUER: ${MCP_OAUTH_ISSUER:-https://idp.invalid}  # defínelo (tu proveedor de identidad, https) antes de usar --profile mcp
+      MCP_OAUTH_AUDIENCE: https://${MCP_DOMAIN:-mcp.invalid}/mcp
       MCP_OAUTH_JWKS_URL: ${MCP_OAUTH_JWKS_URL:-}
-      MCP_ALLOWED_HOSTS: ${MCP_DOMAIN}
+      MCP_ALLOWED_HOSTS: ${MCP_DOMAIN:-mcp.invalid}
     networks: [interna, salida]  # salida: descarga las llaves públicas (JWKS) del proveedor de identidad
     depends_on: {migrate: {condition: service_completed_successfully}}
     mem_limit: 512m
@@ -113,7 +113,7 @@ services:
     cap_add: [NET_BIND_SERVICE]
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
-      MCP_DOMAIN: ${MCP_DOMAIN:-mcp.invalid}
+      MCP_DOMAIN: ${MCP_DOMAIN:-http://mcp.invalid}  # sin MCP_DOMAIN: bloque inerte en HTTP, sin pedir certificados
     ports: ["80:80", "443:443", "443:443/udp"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
