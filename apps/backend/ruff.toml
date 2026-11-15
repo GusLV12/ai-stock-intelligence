@@ -1,0 +1,6 @@
+extend-exclude = [".venv", "*/migrations/*"]
+line-length = 110
+
+[lint]
+# RUF012: Django usa listas/dicts de clase (Meta, constraints) por diseño.
+ignore = ["RUF012"]
