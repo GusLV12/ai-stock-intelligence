@@ -19,7 +19,8 @@ def _weights(rows, key):
     acc = defaultdict(lambda: ZERO)
     for r in rows:
         acc[key(r)] += r.value_base
-    return {k: {"value": v, "weight": v / total} for k, v in sorted(acc.items(), key=lambda kv: -kv[1])}
+    # Con total 0 (p. ej. todo liquidado, solo efectivo) los pesos son 0, no una división indefinida.
+    return {k: {"value": v, "weight": v / total if total else ZERO} for k, v in sorted(acc.items(), key=lambda kv: -kv[1])}
 
 
 def analyze(holdings: list, policy: dict | None = None) -> dict:
