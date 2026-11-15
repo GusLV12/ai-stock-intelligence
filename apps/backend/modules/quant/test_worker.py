@@ -103,3 +103,16 @@ def test_qlib_en_ruido_puro_no_inventa_senal():
         {"horizon": 20, "folds": 1, "seed": 3, "models": ["ridge", "qlib_lgbm"]},
     )
     assert abs(r["models"]["qlib_lgbm"]["test"]["rank_ic"]["mean"]) < 0.12
+
+
+@requiere_qlib
+def test_qlib_en_walk_forward_incluye_el_ajuste_final_para_la_fecha_reciente():
+    from .runner import run_experiment
+
+    series = mundo(7, n_names=16, n=520, persistente=True)
+    r = run_experiment(
+        series, {"horizon": 20, "folds": 3, "seed": 3, "models": ["ridge", "qlib_lgbm"], "top_k": 4}
+    )
+    q = r["models"]["qlib_lgbm"]
+    assert "unavailable" not in q and len(q["folds"]) == 3 and q["rows_without_score"] == 0
+    assert len(r["latest_scores"]) == 16 or r["candidate"] == "ridge"

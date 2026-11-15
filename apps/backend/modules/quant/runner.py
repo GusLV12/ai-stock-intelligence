@@ -221,8 +221,14 @@ def run_experiment(
         live_split is not None
     ):  # walk-forward: puntaje de la fecha más reciente con un ajuste sobre toda la historia
         lseg = {k: segment(rows, live_split[k]) for k in ("train", "valid")}
+        lctx = {
+            "series": series,
+            "train_dates": live_split["train"],
+            "valid_dates": live_split["valid"],
+            "delay": delay,
+        }
         for name, fit in _fit_models(
-            list(acc), lseg["train"], lseg["valid"], {"live": live}, seed, horizon
+            list(acc), lseg["train"], lseg["valid"], {"live": live}, seed, horizon, lctx
         ).items():
             if "scores" in fit:
                 live_scores[name] = fit["scores"]["live"]
