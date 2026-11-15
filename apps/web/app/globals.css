@@ -130,3 +130,11 @@ select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border
 .bubble .who { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
 .composer { display: flex; gap: 8px; position: sticky; bottom: 0; padding: 8px 0; background: var(--bg); }
 .composer input { flex: 1; }
+
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.form { display: flex; flex-direction: column; gap: 16px; }
+.form fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.form legend { padding: 0 6px; font-weight: 700; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; }
+.field input, .field select { font-weight: 400; }
+.form button[type=submit] { align-self: flex-start; }
