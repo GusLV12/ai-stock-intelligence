@@ -23,6 +23,8 @@ COPY apps/mcp_server /app/apps/mcp_server
 WORKDIR /app/apps/backend
 
 # Nada de .env ni documentos reales dentro de la imagen (ver .dockerignore); la configuración llega por variables de entorno.
+# /backups pertenece a `app`: un volumen nombrado nuevo hereda este dueño (si no, el respaldo falla con PermissionError).
+RUN mkdir -p /backups && chown app:app /backups
 USER app
 EXPOSE 8000
 CMD ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
