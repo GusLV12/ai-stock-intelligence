@@ -66,9 +66,9 @@ def test_segundo_archivo_con_filas_solapadas_no_duplica(account, stock):
 
 
 def test_venta_manual_se_vincula_y_no_se_duplica(account, stock):
-    record_buy(account=account, instrument=stock, quantity=D("3.50"), price=D("100"),
+    record_buy(account=account, instrument=stock, quantity=D("3.50"), price=D(100),
                executed_at=datetime(2026, 1, 5, 15, tzinfo=UTC))  # fmt: skip
-    record_sell(account=account, instrument=stock, quantity=D("1.25"), price=D("130"), fees=D("1.00"),
+    record_sell(account=account, instrument=stock, quantity=D("1.25"), price=D(130), fees=D("1.00"),
                 executed_at=datetime(2026, 2, 5, 15, tzinfo=UTC))  # fmt: skip
     batch = preview_import(account, csv_bytes(BUY, SELL))
     assert {r.status for r in batch.rows.all()} == {ImportRow.Status.MATCH_MANUAL}
@@ -101,7 +101,7 @@ def test_fecha_sin_zona_horaria_es_invalida(account, stock):
 
 
 def test_misma_fila_repetida_en_un_archivo_son_dos_operaciones(account, stock):
-    batch, result = do_import(account, BUY, BUY)
+    _, result = do_import(account, BUY, BUY)
     assert result["created"] == 2
     assert get_position(account, stock).quantity == D("7.00")
 

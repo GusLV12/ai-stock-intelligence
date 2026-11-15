@@ -25,7 +25,7 @@ REQUIRED = ["operation", "ticker", "quantity", "price", "executed_at"]
 ADAPTER_VERSION = "1"
 
 
-class ImportError_(ValueError):  # noqa: N801
+class ImportError_(ValueError):
     pass
 
 
@@ -72,7 +72,7 @@ def _normalize(raw: dict, instrument_lookup) -> tuple[dict, Instrument]:
     if price < 0 or fees < 0:
         raise ValueError("price/fees: no pueden ser negativos")
     try:
-        executed = datetime.fromisoformat(raw["executed_at"].strip().replace("Z", "+00:00"))
+        executed = datetime.fromisoformat(raw["executed_at"].strip())
     except ValueError as exc:
         raise ValueError(f"executed_at: fecha ISO 8601 inválida ({raw['executed_at']!r})") from exc
     if executed.tzinfo is None:
