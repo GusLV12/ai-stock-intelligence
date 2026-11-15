@@ -22,6 +22,7 @@ from modules.intelligence.api import ExposureView, PoliciesView
 from modules.intelligence.rebalance_api import RebalancePreviewView
 from modules.intelligence.risk_api import RiskView
 from modules.intelligence.shocks_api import PresetsView, ScenarioView
+from modules.intelligence.thesis_api import FollowUpView, ThesesView, ThesisDetailView
 from modules.portfolio.api import (
     PositionsView,
     SalesView,
@@ -53,6 +54,9 @@ urlpatterns = [
     path("api/v1/portfolio/scenarios/presets", PresetsView.as_view(), name="scenario-presets"),
     path("api/v1/portfolio/scenarios", ScenarioView.as_view(), name="scenarios"),
     path("api/v1/portfolio/risk", RiskView.as_view(), name="portfolio-risk"),
+    path("api/v1/portfolio/theses", ThesesView.as_view(), name="theses"),
+    path("api/v1/portfolio/theses/<int:pk>", ThesisDetailView.as_view(), name="thesis-detail"),
+    path("api/v1/portfolio/theses/<int:pk>/follow-ups", FollowUpView.as_view(), name="thesis-follow-ups"),
     path("api/v1/portfolio/exposure", ExposureView.as_view(), name="exposure"),
     path("api/v1/screeners/fair-value", RunScreenView.as_view(), name="screener-run"),
     path("api/v1/screeners/runs", RunListView.as_view(), name="screener-runs"),

@@ -37,3 +37,5 @@ class PortfolioPolicy(models.Model):
 
 def active_policy(user):
     return PortfolioPolicy.objects.filter(user=user).first()
+
+from .thesis_models import InvestmentThesis, ThesisFollowUp  # noqa: F401  (registra los modelos)
