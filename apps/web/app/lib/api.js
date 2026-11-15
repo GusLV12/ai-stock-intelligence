@@ -109,3 +109,29 @@ export async function apiDownload(path, body) {
   }
   return res.blob();
 }
+
+// Sube un archivo (multipart) a un endpoint protegido con CSRF; devuelve el JSON de la respuesta.
+export async function apiUpload(path, file) {
+  const token = await csrfToken();
+  const form = new FormData();
+  form.append("file", file);
+  let res;
+  try {
+    res = await fetch(path, { method: "POST", headers: { "X-CSRFToken": token }, body: form, cache: "no-store" });
+  } catch {
+    throw new ApiError(0, "No se pudo conectar con el servidor.");
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const rows = Array.isArray(data?.errors) ? data.errors.slice(0, 5).map((e) => `fila ${e.row}: ${e.error}`).join("; ") : "";
+    throw new ApiError(res.status, [messageFrom(data, `Error ${res.status}`), rows].filter(Boolean).join(" — "));
+  }
+  return data;
+}
+
+// Descarga un archivo con GET (p. ej. CSV de una corrida).
+export async function apiDownloadGet(path) {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
+  return res.blob();
+}

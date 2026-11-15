@@ -138,3 +138,7 @@ select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; font-weight: 600; }
 .field input, .field select { font-weight: 400; }
 .form button[type=submit] { align-self: flex-start; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.check input { width: auto; }
