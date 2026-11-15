@@ -33,6 +33,7 @@ from modules.portfolio.api import (
 )
 from modules.portfolio.dashboard import DashboardView
 from modules.pricing.api import FxView, PricesView
+from modules.paper import api as paper_api
 from modules.quant.api import ExperimentDetailView, ExperimentsView, OverviewView, VerifyView
 from modules.technical.alerts_api import AlertsView, CancelAlertView, EvaluateAlertsView
 from modules.technical.api import AnalyzeView, ScanView, SymbolsView, TradePlanView
@@ -67,6 +68,18 @@ urlpatterns = [
     path("api/v1/technical/alerts", AlertsView.as_view(), name="technical-alerts"),
     path("api/v1/technical/alerts/evaluate", EvaluateAlertsView.as_view(), name="technical-alerts-evaluate"),
     path("api/v1/technical/alerts/<int:pk>/cancel", CancelAlertView.as_view(), name="technical-alert-cancel"),
+    path("api/v1/paper/accounts", paper_api.AccountsView.as_view(), name="paper-accounts"),
+    path("api/v1/paper/accounts/<int:pk>", paper_api.AccountView.as_view(), name="paper-account"),
+    path("api/v1/paper/accounts/<int:pk>/orders", paper_api.OrdersView.as_view(), name="paper-orders"),
+    path(
+        "api/v1/paper/accounts/<int:pk>/orders/<int:order_id>/cancel",
+        paper_api.CancelOrderView.as_view(),
+        name="paper-order-cancel",
+    ),
+    path("api/v1/paper/accounts/<int:pk>/process", paper_api.ProcessView.as_view(), name="paper-process"),
+    path("api/v1/paper/accounts/<int:pk>/equity", paper_api.EquityView.as_view(), name="paper-equity"),
+    path("api/v1/paper/accounts/<int:pk>/journal", paper_api.JournalView.as_view(), name="paper-journal"),
+    path("api/v1/paper/accounts/<int:pk>/proposal", paper_api.ProposalView.as_view(), name="paper-proposal"),
     path("api/v1/quant/overview", OverviewView.as_view(), name="quant-overview"),
     path("api/v1/quant/experiments", ExperimentsView.as_view(), name="quant-experiments"),
     path("api/v1/quant/experiments/<int:pk>", ExperimentDetailView.as_view(), name="quant-experiment"),
@@ -89,8 +102,12 @@ urlpatterns = [
     path("api/v1/market/prices", PricesView.as_view(), name="market-prices"),
     path("api/v1/market/fx", FxView.as_view(), name="market-fx"),
     path("api/v1/imports/positions", PositionsImportView.as_view(), name="import-positions"),
-    path("api/v1/snapshots/<int:pk>/reconciliation", SnapshotReconciliationView.as_view(), name="snapshot-rec"),
-    path("api/v1/snapshots/<int:pk>/opening-balances", SnapshotOpeningView.as_view(), name="snapshot-opening"),
+    path(
+        "api/v1/snapshots/<int:pk>/reconciliation", SnapshotReconciliationView.as_view(), name="snapshot-rec"
+    ),
+    path(
+        "api/v1/snapshots/<int:pk>/opening-balances", SnapshotOpeningView.as_view(), name="snapshot-opening"
+    ),
     path("api/v1/imports", ImportsView.as_view(), name="imports"),
     path("api/v1/imports/<int:pk>", ImportDetailView.as_view(), name="import-detail"),
     path("api/v1/imports/<int:pk>/confirm", ImportConfirmView.as_view(), name="import-confirm"),

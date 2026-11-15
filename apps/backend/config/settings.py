@@ -123,7 +123,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "assistant": "10/min", "intraday": "6/min", "quant": "6/min"},
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "5/min",
+        "assistant": "10/min",
+        "intraday": "6/min",
+        "quant": "6/min",
+    },
     # Las vistas de exportación interpretan ?format= (csv/json) ellas mismas; DRF lo usaría para elegir renderizador.
     "URL_FORMAT_OVERRIDE": None,
 }
@@ -134,4 +139,6 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
-CSRF_TRUSTED_ORIGINS = [o for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "http://localhost:3000").split(",") if o]
+CSRF_TRUSTED_ORIGINS = [
+    o for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "http://localhost:3000").split(",") if o
+]
