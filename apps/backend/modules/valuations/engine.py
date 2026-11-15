@@ -208,7 +208,7 @@ def relative_value(
     warnings.append("Un sector entero puede estar caro o barato: no uses los múltiplos como único método.")
     return {
         "applicable": True,
-        "method": RELATIVE_METHODS[method],
+        "label": RELATIVE_METHODS[method],
         "multiple_low": low, "multiple_median": mid, "multiple_high": high,
         "value_low": per_share(low), "value_per_share": per_share(mid), "value_high": per_share(high),
         "warnings": warnings,
