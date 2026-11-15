@@ -36,6 +36,7 @@ class Command(BaseCommand):
         res = evaluate(generate, repeats=o["repeats"])
         for m, t in res["thresholds"].items():
             self.stdout.write(f"  {m}: {res['rates'][m]:.0%} (mínimo {t:.0%})")
+        self.stdout.write(f"  respuestas con saltos de línea reparados: {res['repaired_rate']:.0%}")
         for task, rate in res["by_task"].items():
             self.stdout.write(f"    {task}: correcto {rate:.0%}")
         self.stdout.write(f"Veredicto: {res['verdict']}")

@@ -194,7 +194,7 @@ def fixtures(seed: int = 0, cases: int = 4, length: int = 130) -> list[list[floa
 def score_answer(task_id: str, raw: str, data: list[list[float]]) -> dict:
     """Puntúa una respuesta: JSON válido, código seguro y correcto. Nunca ejecuta código que no pasó la lista blanca."""
     ref = next(f for t, _, f in TASKS if t == task_id)
-    res = {"json_valid": False, "code_safe": False, "correct": False, "error": None}
+    res = {"json_valid": False, "code_safe": False, "correct": False, "error": None, "repaired": False}
     try:
         obj = json.loads(raw)
         if not (
@@ -202,7 +202,13 @@ def score_answer(task_id: str, raw: str, data: list[list[float]]) -> dict:
         ):
             raise TypeError("Forma inesperada.")
         res["json_valid"] = True
-        fn = compile_factor(obj["code"])
+        code = obj["code"]
+        literal_nl = chr(92) + "n"  # barra invertida + n escritos como texto
+        if (
+            chr(10) not in code and literal_nl in code
+        ):  # los modelos pequeños suelen escapar dos veces los saltos de línea
+            code, res["repaired"] = code.replace(literal_nl, chr(10)), True
+        fn = compile_factor(code)
         res["code_safe"] = True
         ok = True
         for closes in data:
@@ -248,7 +254,7 @@ def evaluate(generate, repeats: int = 3, seed: int = 0) -> dict:
     rates = {m: sum(r[m] for r in rows) / n for m in THRESHOLDS}
     ok = all(rates[m] >= t for m, t in THRESHOLDS.items())
     return {
-        "runs": n, "rates": rates, "thresholds": THRESHOLDS, "rows": rows,
+        "runs": n, "rates": rates, "repaired_rate": sum(bool(r.get("repaired")) for r in rows) / n, "thresholds": THRESHOLDS, "rows": rows,
         "verdict": "APTO_PARA_INTENTAR_RD_AGENT" if ok else "NO_APTO",
         "by_task": {t: sum(r["correct"] for r in rows if r["task"] == t) / repeats for t, _, _ in TASKS},
     }  # fmt: skip

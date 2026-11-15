@@ -35,7 +35,13 @@ def test_las_referencias_correctas_pasan_todas_las_tareas():
     data = fixtures()
     for task, code in CORRECT.items():
         r = score_answer(task, answer(code), data)
-        assert r == {"json_valid": True, "code_safe": True, "correct": True, "error": None}, (task, r)
+        assert r == {
+            "json_valid": True,
+            "code_safe": True,
+            "correct": True,
+            "error": None,
+            "repaired": False,
+        }, (task, r)
 
 
 def test_un_generador_perfecto_es_apto():
@@ -136,3 +142,9 @@ def test_bombas_de_tiempo_y_memoria_se_cortan(code):
         return  # rechazado en la validación estática
     with pytest.raises(UnsafeCode):
         fn(list(range(1, 130)))  # o cortado al ejecutarse
+
+
+def test_saltos_de_linea_doblemente_escapados_se_reparan_y_se_declaran():
+    doble = json.dumps({"name": "m", "code": CORRECT["momentum_10"].replace(chr(10), chr(92) + "n")})
+    r = score_answer("momentum_10", doble, fixtures())
+    assert r["correct"] is True and r["repaired"] is True
