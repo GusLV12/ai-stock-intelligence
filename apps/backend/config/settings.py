@@ -116,7 +116,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_THROTTLE_RATES": {"login": "5/min"},
+    "DEFAULT_THROTTLE_RATES": {"login": "5/min", "assistant": "10/min"},
 }
 
 # Sesión y cookies: HttpOnly para la sesión; en producción exigir HTTPS.

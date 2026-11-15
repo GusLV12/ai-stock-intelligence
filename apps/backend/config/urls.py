@@ -3,6 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import SimpleRouter
 
 from modules.accounts.api import AccountViewSet
+from modules.assistant.api import ChatView
 from modules.imports.api import (
     ExportView,
     ImportConfirmView,
@@ -38,6 +39,7 @@ urlpatterns = [
     path("api/v1/portfolio/sales", SalesView.as_view(), name="sales"),
     path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
     path("api/v1/tax/years/<int:year>/sales", TaxYearSalesView.as_view(), name="tax-sales"),
+    path("api/v1/assistant/chat", ChatView.as_view(), name="assistant-chat"),
     path("api/v1/market/prices", PricesView.as_view(), name="market-prices"),
     path("api/v1/market/fx", FxView.as_view(), name="market-fx"),
     path("api/v1/imports/positions", PositionsImportView.as_view(), name="import-positions"),
