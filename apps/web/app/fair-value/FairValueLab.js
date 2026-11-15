@@ -3,19 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { api, ApiError } from "../lib/api";
-
-// "7.5" -> "0.075" sin pasar por números de punto flotante (evita 0.07099999…).
-function pct(text) {
-  const t = String(text ?? "").trim().replace(",", ".");
-  if (!/^-?\d+(\.\d+)?$/.test(t)) return t; // que el backend valide lo que no sea número
-  const neg = t.startsWith("-");
-  const [int, frac = ""] = t.replace("-", "").split(".");
-  const decimals = frac.length + 2; // dividir entre 100 desplaza el punto dos lugares
-  const padded = (int + frac).padStart(decimals + 1, "0");
-  const cut = padded.length - decimals;
-  return `${neg ? "-" : ""}${padded.slice(0, cut)}.${padded.slice(cut)}`;
-}
+import { api, ApiError, pctToDecimal as pct } from "../lib/api";
 
 const num = (v) => (String(v ?? "").trim() === "" ? undefined : String(v).trim().replace(",", "."));
 const list = (v) => String(v ?? "").split(/[,\s]+/).filter(Boolean).map((x) => x.replace(",", "."));

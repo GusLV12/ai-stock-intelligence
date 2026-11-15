@@ -76,3 +76,36 @@ export function signClass(value) {
   const n = Number(value);
   return n > 0 ? "pos" : n < 0 ? "neg" : "";
 }
+
+// "7.5" -> "0.075" sin pasar por números de punto flotante (evita 0.07099999…).
+export function pctToDecimal(text) {
+  const t = String(text ?? "").trim().replace(",", ".");
+  if (!/^-?\d+(\.\d+)?$/.test(t)) return t; // que el backend valide lo que no sea número
+  const neg = t.startsWith("-");
+  const [int, frac = ""] = t.replace("-", "").split(".");
+  const decimals = frac.length + 2; // dividir entre 100 desplaza el punto dos lugares
+  const padded = (int + frac).padStart(decimals + 1, "0");
+  const cut = padded.length - decimals;
+  return `${neg ? "-" : ""}${padded.slice(0, cut)}.${padded.slice(cut)}`;
+}
+
+// Descarga una respuesta no JSON (p. ej. CSV) de un POST protegido con CSRF.
+export async function apiDownload(path, body) {
+  const token = await csrfToken();
+  let res;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { "X-CSRFToken": token, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(0, "No se pudo conectar con el servidor.");
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, messageFrom(data, `Error ${res.status}`));
+  }
+  return res.blob();
+}
