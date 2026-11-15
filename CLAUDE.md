@@ -26,7 +26,7 @@ Django 6 + DRF (`apps/backend`), Next.js 16 JS (`apps/web`, lee `apps/web/AGENTS
 | `calculators` | CAGR, FX, TWR, dividendos, precio máximo de compra |
 | `fundamentals` | `FinancialYear` versionado, Piotroski, screener con corridas inmutables |
 | `intelligence` | Exposición, rebalanceo teórico, shocks, riesgo histórico, diario de tesis |
-| `technical` | Indicadores, señales auditables, plan con motor de riesgo, alertas |
+| `technical` | Indicadores, señales auditables, plan con motor de riesgo, alertas, liquidez (ADV, tamaño vs volumen, spread estimado) |
 | `quant` | Quant Lab: factores sin anticipación, walk-forward, backtest con costos, promoción con corrección por intentos, `QuantExperiment` inmutable |
 | `paper` | Paper trading (cuenta virtual); **no puede importar red/brokers/portfolio/imports** (hay prueba que lo verifica) |
 | `assistant` | Asistente local con salvaguardas deterministas |
@@ -80,4 +80,4 @@ Resultados reales del Quant Lab (80 emisoras, 5 años): sin señal, `NO_PROMOVID
 
 ## Documentación
 
-`docs/runbooks/` (asistente-local, quant-lab, paper-trading, despliegue-remoto), `docs/adr/`, `docs/financial-methodology/`, `apps/mcp_server/README.md`, `workers/qlib/README.md`.
+`docs/runbooks/` (asistente-local, quant-lab, paper-trading, despliegue-remoto), `docs/adr/`, `docs/financial-methodology/` (incluye `liquidez.md`), `apps/mcp_server/README.md`, `workers/qlib/README.md`.
