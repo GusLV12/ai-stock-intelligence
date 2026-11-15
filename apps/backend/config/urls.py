@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import SimpleRouter
@@ -5,6 +6,7 @@ from rest_framework.routers import SimpleRouter
 from modules.accounts.api import AccountViewSet
 from modules.assistant.api import ChatView
 from modules.calculators.api import CagrView, TargetBuyPriceView
+from modules.core import observability
 from modules.fundamentals.api import ImportView as FundamentalsImportView
 from modules.fundamentals.api import InstrumentFinancialsView
 from modules.fundamentals.screener_api import RunDetailView, RunListView, RunScreenView
@@ -23,6 +25,7 @@ from modules.intelligence.rebalance_api import RebalancePreviewView
 from modules.intelligence.risk_api import RiskView
 from modules.intelligence.shocks_api import PresetsView, ScenarioView
 from modules.intelligence.thesis_api import FollowUpView, ThesesView, ThesisDetailView
+from modules.paper import api as paper_api
 from modules.portfolio.api import (
     PositionsView,
     SalesView,
@@ -33,7 +36,6 @@ from modules.portfolio.api import (
 )
 from modules.portfolio.dashboard import DashboardView
 from modules.pricing.api import FxView, PricesView
-from modules.paper import api as paper_api
 from modules.quant.api import ExperimentDetailView, ExperimentsView, OverviewView, VerifyView
 from modules.technical.alerts_api import AlertsView, CancelAlertView, EvaluateAlertsView
 from modules.technical.api import AnalyzeView, ScanView, SymbolsView, TradePlanView
@@ -45,7 +47,9 @@ router.register("accounts", AccountViewSet, basename="account")
 router.register("instruments", InstrumentViewSet, basename="instrument")
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    *([path(f"{settings.ADMIN_URL}/", admin.site.urls)] if settings.ADMIN_URL else []),
+    path("api/v1/health", observability.health, name="health"),
+    path("api/v1/ready", observability.ready, name="ready"),
     path("api/v1/", include("modules.core.urls")),
     path("api/v1/portfolio/transactions", TransactionsView.as_view(), name="transactions"),
     path("api/v1/portfolio/positions", PositionsView.as_view(), name="positions"),

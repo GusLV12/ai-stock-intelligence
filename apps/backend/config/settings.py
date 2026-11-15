@@ -52,6 +52,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "modules.core.observability.RequestIdMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -142,3 +143,50 @@ CSRF_COOKIE_SECURE = not DEBUG
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "http://localhost:3000").split(",") if o
 ]
+
+# --- Endurecimiento para el despliegue remoto (plan 17/20). Con DJANGO_DEBUG=false todo esto queda activo. ---
+BEHIND_PROXY = env_bool("DJANGO_BEHIND_PROXY", False)  # TLS termina en el proxy inverso (Caddy/nginx)
+if BEHIND_PROXY:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "same-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+SESSION_COOKIE_AGE = int(os.getenv("DJANGO_SESSION_HOURS", "12")) * 3600
+DATA_UPLOAD_MAX_MEMORY_SIZE = (
+    15 * 1024 * 1024
+)  # los XLSX/CSV de importación son pequeños; nada de cargas enormes
+FILE_UPLOAD_MAX_MEMORY_SIZE = 15 * 1024 * 1024
+if not DEBUG:
+    SECURE_SSL_REDIRECT = env_bool("DJANGO_SSL_REDIRECT", True)
+    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", str(60 * 60 * 24 * 365)))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_HSTS_SUBDOMAINS", True)
+    SECURE_HSTS_PRELOAD = env_bool(
+        "DJANGO_HSTS_PRELOAD", False
+    )  # solo cuando el dominio esté listo para la lista de precarga
+    CSRF_COOKIE_HTTPONLY = True  # el cliente obtiene el token por /api/v1/auth/csrf
+    if not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS:
+        raise RuntimeError("DJANGO_ALLOWED_HOSTS debe listar dominios concretos cuando DJANGO_DEBUG=false")
+    if any(
+        o.startswith("http://") and "localhost" not in o and "127.0.0.1" not in o
+        for o in CSRF_TRUSTED_ORIGINS
+    ):
+        raise RuntimeError("DJANGO_CSRF_TRUSTED_ORIGINS debe usar https:// en producción")
+
+# W021 (precarga HSTS) se silencia a propósito: la precarga es casi irreversible y solo debe activarla el dueño del dominio
+# con DJANGO_HSTS_PRELOAD=true; mientras tanto HSTS de un año ya protege a los navegadores que visitaron el sitio.
+if not DEBUG and not SECURE_HSTS_PRELOAD:
+    SILENCED_SYSTEM_CHECKS = ["security.W021"]
+
+# El panel /admin no se expone en producción salvo que se defina una ruta propia y no obvia.
+ADMIN_URL = os.getenv("DJANGO_ADMIN_URL", "admin/" if DEBUG else "").strip("/")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"redact": {"()": "modules.core.observability.RedactFilter"}},
+    "formatters": {"json": {"()": "modules.core.observability.JsonFormatter"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json", "filters": ["redact"]}},
+    "root": {"handlers": ["console"], "level": os.getenv("DJANGO_LOG_LEVEL", "INFO")},
+    "loggers": {"django.server": {"level": "INFO"}},
+}
