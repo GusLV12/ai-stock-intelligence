@@ -314,3 +314,47 @@ class YahooProvider:
         if not by_date:
             raise ProviderError(f"Yahoo no devolvió cierres válidos para {symbol}.")
         return {"currency": currency, "bars": sorted(by_date.items()), "ohlcv": [full[d] for d in sorted(full)]}
+
+    # ---------- velas intradía de 5 minutos (bajo demanda; no se guardan) ----------
+
+    def fetch_intraday(self, symbol: str, range_: str = "1d") -> dict:
+        """Velas crudas de 5 minutos: {'currency', 'timezone', 'raw': [{ts, open, high, low, close, volume}]}.
+        La limpieza (horario regular, cuadrícula, velas completas) la hace modules.technical.intraday.clean."""
+        if range_ not in {"1d", "5d"}:
+            raise ProviderError(f"Rango intradía no soportado: {range_}.")
+        symbol = symbol.replace(".", "-")
+        self._throttle()
+        quoted = urllib.parse.quote(symbol, safe="")
+        last = None
+        for host in self.HOSTS:
+            url = f"https://{host}/v8/finance/chart/{quoted}?range={range_}&interval=5m"
+            try:
+                data = self._http(url, headers={"User-Agent": self.USER_AGENT, "Accept": "*/*"})
+            except ProviderError as exc:
+                if not exc.transient:
+                    raise ProviderError(f"Yahoo no tiene datos intradía de {symbol}.") from None
+                last = exc
+                continue
+            chart = data.get("chart")
+            if isinstance(chart, dict) and chart.get("error"):
+                raise ProviderError(f"Yahoo no tiene datos intradía de {symbol}.")
+            try:
+                res = chart["result"][0]
+                stamps, q, meta = res["timestamp"], res["indicators"]["quote"][0], res["meta"]
+            except (KeyError, IndexError, TypeError):
+                last = ProviderError("Respuesta de Yahoo con formato inesperado.", transient=True)
+                continue
+            tz = str(meta.get("exchangeTimezoneName") or "")
+            currency = str(meta.get("currency") or "").upper()
+            if not tz or len(currency) != 3 or not isinstance(stamps, list):
+                raise ProviderError(f"Faltan zona horaria o moneda de {symbol} en Yahoo.")
+            raw = []
+            for i, ts in enumerate(stamps):
+                row = {"ts": ts}
+                for key in ("open", "high", "low", "close", "volume"):
+                    seq = q.get(key)
+                    v = seq[i] if isinstance(seq, list) and i < len(seq) else None
+                    row[key] = v if key == "volume" else self._price(v)
+                raw.append(row)
+            return {"currency": currency, "timezone": tz, "raw": raw}
+        raise last or ProviderError("Yahoo no disponible.", transient=True)
