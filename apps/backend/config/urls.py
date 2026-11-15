@@ -40,6 +40,7 @@ from modules.quant.api import ExperimentDetailView, ExperimentsView, OverviewVie
 from modules.technical.alerts_api import AlertsView, CancelAlertView, EvaluateAlertsView
 from modules.technical.api import AnalyzeView, ScanView, SymbolsView, TradePlanView
 from modules.technical.intraday_api import IntradayView
+from modules.technical.liquidity_api import LiquidityView, PortfolioLiquidityView
 from modules.valuations.api import DcfView, FairValueDetailView, FairValueView, ReverseDcfView
 
 router = SimpleRouter(trailing_slash=False)
@@ -68,6 +69,12 @@ urlpatterns = [
     path("api/v1/technical/symbols", SymbolsView.as_view(), name="technical-symbols"),
     path("api/v1/technical/analyze", AnalyzeView.as_view(), name="technical-analyze"),
     path("api/v1/technical/intraday", IntradayView.as_view(), name="technical-intraday"),
+    path("api/v1/technical/liquidity", LiquidityView.as_view(), name="technical-liquidity"),
+    path(
+        "api/v1/technical/liquidity/portfolio",
+        PortfolioLiquidityView.as_view(),
+        name="technical-liquidity-portfolio",
+    ),
     path("api/v1/technical/alerts", AlertsView.as_view(), name="technical-alerts"),
     path("api/v1/technical/alerts/evaluate", EvaluateAlertsView.as_view(), name="technical-alerts-evaluate"),
     path("api/v1/technical/alerts/<int:pk>/cancel", CancelAlertView.as_view(), name="technical-alert-cancel"),
