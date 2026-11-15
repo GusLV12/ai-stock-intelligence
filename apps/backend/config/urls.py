@@ -19,6 +19,7 @@ from modules.imports.api import (
 )
 from modules.instruments.api import InstrumentViewSet
 from modules.intelligence.api import ExposureView, PoliciesView
+from modules.intelligence.rebalance_api import RebalancePreviewView
 from modules.portfolio.api import (
     PositionsView,
     SalesView,
@@ -46,6 +47,7 @@ urlpatterns = [
     path("api/v1/tax/years/<int:year>/summary", TaxYearSummaryView.as_view(), name="tax-summary"),
     path("api/v1/tax/years/<int:year>/sales", TaxYearSalesView.as_view(), name="tax-sales"),
     path("api/v1/portfolio/policies", PoliciesView.as_view(), name="policies"),
+    path("api/v1/portfolio/rebalance-preview", RebalancePreviewView.as_view(), name="rebalance-preview"),
     path("api/v1/portfolio/exposure", ExposureView.as_view(), name="exposure"),
     path("api/v1/screeners/fair-value", RunScreenView.as_view(), name="screener-run"),
     path("api/v1/screeners/runs", RunListView.as_view(), name="screener-runs"),

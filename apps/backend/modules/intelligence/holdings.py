@@ -35,6 +35,7 @@ class Holding:
     value_base: Decimal | None  # en USD (None si no se pudo convertir o no hay precio)
     price_provider: str | None
     price_age_hours: float | None
+    quantity_scale: int = 6
 
 
 def _to_base(value: Decimal, currency: str, fx_usd_mxn: Decimal | None) -> Decimal | None:
@@ -67,6 +68,7 @@ def load_holdings(user) -> dict:
             quantity=r["quantity"], price=price, value=value, value_base=base,
             price_provider=mp.provider if mp else None,
             price_age_hours=round((now - mp.observed_at).total_seconds() / 3600, 1) if mp else None,
+            quantity_scale=ins.quantity_scale,
         )  # fmt: skip
         holdings.append(h)
         if value is None:
