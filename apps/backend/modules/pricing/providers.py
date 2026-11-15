@@ -41,7 +41,9 @@ def http_get_json(url: str, headers: dict | None = None, timeout: int = 15) -> d
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - esquema https validado arriba
             raw = resp.read(MAX_BYTES + 1)
     except urllib.error.HTTPError as exc:
-        raise ProviderError(f"El proveedor respondió HTTP {exc.code}.", transient=exc.code == 429 or exc.code >= 500) from None
+        raise ProviderError(
+            f"El proveedor respondió HTTP {exc.code}.", transient=exc.code == 429 or exc.code >= 500
+        ) from None
     except (urllib.error.URLError, TimeoutError, OSError):
         raise ProviderError("No se pudo conectar con el proveedor.", transient=True) from None
     if len(raw) > MAX_BYTES:
@@ -78,7 +80,9 @@ class TwelveDataProvider:
     name = "TWELVE_DATA"
     BASE = "https://api.twelvedata.com/quote"
 
-    def __init__(self, api_key: str, per_minute: int = 8, http=http_get_json, sleep=time.sleep, clock=time.monotonic):
+    def __init__(
+        self, api_key: str, per_minute: int = 8, http=http_get_json, sleep=time.sleep, clock=time.monotonic
+    ):
         if not api_key:
             raise ProviderError("Falta TWELVE_DATA_API_KEY.")
         self._key, self._http, self._sleep, self._clock = api_key, http, sleep, clock
@@ -156,7 +160,9 @@ class YahooProvider:
     FX_SYMBOL = "MXN=X"  # pesos por dólar
     MAX_FUTURE = 300  # segundos de tolerancia con relojes desfasados
 
-    def __init__(self, http=http_get_json, sleep=time.sleep, clock=time.monotonic, pause: float = 0.3, now=None):
+    def __init__(
+        self, http=http_get_json, sleep=time.sleep, clock=time.monotonic, pause: float = 0.3, now=None
+    ):
         self._http, self._sleep, self._clock = http, sleep, clock
         self._pause, self._last = pause, None
         self._now = now or (lambda: datetime.now(UTC))
@@ -316,16 +322,27 @@ class YahooProvider:
                 continue
             try:
                 day = (datetime.fromtimestamp(int(ts), UTC) + timedelta(seconds=offset)).date()
-                value = _decimal(close, "Cierre").quantize(Decimal("0.0001"))  # quita el ruido de float del proveedor
+                value = _decimal(close, "Cierre").quantize(
+                    Decimal("0.0001")
+                )  # quita el ruido de float del proveedor
             except (TypeError, ValueError, OverflowError, OSError, ProviderError):
                 continue
             if value <= 0 or day >= today_local:  # sin cierres inválidos ni la barra de hoy
                 continue
             by_date[day] = value  # una barra por día; la posterior gana
-            full[day] = {"date": day, "close": value, "adj_close": self._adj(adj, i, value), **self._ohlcv(quote, i, value)}
+            full[day] = {
+                "date": day,
+                "close": value,
+                "adj_close": self._adj(adj, i, value),
+                **self._ohlcv(quote, i, value),
+            }
         if not by_date:
             raise ProviderError(f"Yahoo no devolvió cierres válidos para {symbol}.")
-        return {"currency": currency, "bars": sorted(by_date.items()), "ohlcv": [full[d] for d in sorted(full)]}
+        return {
+            "currency": currency,
+            "bars": sorted(by_date.items()),
+            "ohlcv": [full[d] for d in sorted(full)],
+        }
 
     # ---------- velas intradía de 5 minutos (bajo demanda; no se guardan) ----------
 

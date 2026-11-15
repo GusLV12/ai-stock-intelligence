@@ -44,7 +44,9 @@ class FinancialYear(models.Model):
     class Meta:
         ordering = ["instrument_id", "-fiscal_year", "-version"]
         constraints = [
-            models.UniqueConstraint(fields=["instrument", "fiscal_year", "version"], name="uniq_financial_year_version"),
+            models.UniqueConstraint(
+                fields=["instrument", "fiscal_year", "version"], name="uniq_financial_year_version"
+            ),
             models.CheckConstraint(condition=Q(fiscal_year__gte=1990), name="fy_min"),
         ]
 
@@ -53,7 +55,9 @@ class FinancialYear(models.Model):
         return None if self.cfo is None or self.capex is None else self.cfo - self.capex
 
     def delete(self, *args, **kwargs):
-        raise models.ProtectedError("Los datos financieros no se borran; una corrección crea una versión nueva.", {self})
+        raise models.ProtectedError(
+            "Los datos financieros no se borran; una corrección crea una versión nueva.", {self}
+        )
 
 
 from .screen_models import ScreenRun  # noqa: F401  (registra el modelo en la app)

@@ -23,7 +23,14 @@ NOW = datetime.fromtimestamp(1794610000, UTC)
 YAHOO = {
     "chart": {
         "result": [
-            {"meta": {"currency": "USD", "symbol": "AAA", "regularMarketPrice": 356.27, "regularMarketTime": 1794603601}}
+            {
+                "meta": {
+                    "currency": "USD",
+                    "symbol": "AAA",
+                    "regularMarketPrice": 356.27,
+                    "regularMarketTime": 1794603601,
+                }
+            }
         ],
         "error": None,
     }
@@ -31,7 +38,14 @@ YAHOO = {
 YAHOO_FX = {
     "chart": {
         "result": [
-            {"meta": {"currency": "MXN", "symbol": "MXN=X", "regularMarketPrice": 18.523, "regularMarketTime": 1794609216}}
+            {
+                "meta": {
+                    "currency": "MXN",
+                    "symbol": "MXN=X",
+                    "regularMarketPrice": 18.523,
+                    "regularMarketTime": 1794609216,
+                }
+            }
         ],
         "error": None,
     }
@@ -70,7 +84,13 @@ def held(db):
     for t in ("AAA", "BBB", "CCC"):
         ins = Instrument.objects.create(asset_class="STOCK", name=t, quantity_scale=8)
         InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value=t)
-        record_buy(account=acc, instrument=ins, quantity=D(1), price=D(10), executed_at=datetime(2026, 1, 1, tzinfo=UTC))
+        record_buy(
+            account=acc,
+            instrument=ins,
+            quantity=D(1),
+            price=D(10),
+            executed_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
         out[t] = ins
     return out
 
@@ -94,7 +114,9 @@ def test_yahoo_manda_solo_el_simbolo_y_un_agente_generico():
 
 def test_yahoo_cae_al_segundo_servidor_solo_si_el_error_es_transitorio():
     http = fake_http([ProviderError("HTTP 500", transient=True), YAHOO])
-    assert YahooProvider(http=http, sleep=lambda s: None, now=lambda: NOW).fetch_quote("AAA").price == D("356.27")
+    assert YahooProvider(http=http, sleep=lambda s: None, now=lambda: NOW).fetch_quote("AAA").price == D(
+        "356.27"
+    )
     assert "query1" in http.calls[1][0]
     perm = fake_http([ProviderError("HTTP 404", transient=False), YAHOO])
     with pytest.raises(ProviderError, match="no tiene datos") as exc:
@@ -160,11 +182,19 @@ def test_precios_usan_el_respaldo_cuando_el_principal_esta_caido(held):
     res = refresh_prices([principal, yahoo(YAHOO)])
     assert res["updated"] == ["AAA", "BBB", "CCC"] and res["fallback_used"] == ["AAA", "BBB", "CCC"]
     assert not res["failed"]
-    assert {p.provider for p in MarketPrice.objects.all()} == {"YAHOO_UNOFFICIAL"}  # se guarda quién respondió
+    assert {p.provider for p in MarketPrice.objects.all()} == {
+        "YAHOO_UNOFFICIAL"
+    }  # se guarda quién respondió
 
 
 def test_si_el_principal_responde_no_se_toca_el_respaldo(held):
-    quote = {"symbol": "AAA", "currency": "USD", "timestamp": 1794580200, "last_quote_at": 1794603540, "close": "10"}
+    quote = {
+        "symbol": "AAA",
+        "currency": "USD",
+        "timestamp": 1794580200,
+        "last_quote_at": 1794603540,
+        "close": "10",
+    }
     respaldo_http = fake_http(YAHOO)
     respaldo = YahooProvider(http=respaldo_http, sleep=lambda s: None, now=lambda: NOW)
     res = refresh_prices([twelve(quote), respaldo])
@@ -197,7 +227,9 @@ def test_si_todos_los_proveedores_caen_se_informa_sin_inventar_precios(held):
     p2 = yahoo(ProviderError("caído", transient=True))
     res = refresh_prices([p1, p2])
     assert MarketPrice.objects.count() == 0 and "_abortado" in res["failed"]
-    assert any("TWELVE_DATA" in v and "YAHOO_UNOFFICIAL" in v for k, v in res["failed"].items() if k != "_abortado")
+    assert any(
+        "TWELVE_DATA" in v and "YAHOO_UNOFFICIAL" in v for k, v in res["failed"].items() if k != "_abortado"
+    )
 
 
 def test_moneda_distinta_en_el_respaldo_no_se_guarda(held):

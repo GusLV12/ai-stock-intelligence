@@ -14,7 +14,16 @@ class InstrumentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Instrument
-        fields = ["id", "asset_class", "name", "market", "currency", "quantity_scale", "sector_kind", "identifiers"]
+        fields = [
+            "id",
+            "asset_class",
+            "name",
+            "market",
+            "currency",
+            "quantity_scale",
+            "sector_kind",
+            "identifiers",
+        ]
         read_only_fields = ["id"]
 
     def validate_quantity_scale(self, value):
@@ -34,4 +43,4 @@ class InstrumentViewSet(
     mixins.ListModelMixin, mixins.CreateModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
 ):
     serializer_class = InstrumentSerializer
-    queryset = Instrument.objects.prefetch_related("identifiers").order_by("id")
+    queryset = Instrument.objects.filter(research_only=False).prefetch_related("identifiers").order_by("id")

@@ -19,7 +19,13 @@ QUOTE = {
     "symbol": "AAA", "currency": "USD", "datetime": "2026-11-13", "timestamp": 1794580200,
     "last_quote_at": 1794603540, "close": "356.26999", "is_market_open": False,
 }  # fmt: skip
-BANXICO = {"bmx": {"series": [{"idSerie": "SF43718", "titulo": "FIX", "datos": [{"fecha": "13/11/2026", "dato": "18.4930"}]}]}}
+BANXICO = {
+    "bmx": {
+        "series": [
+            {"idSerie": "SF43718", "titulo": "FIX", "datos": [{"fecha": "13/11/2026", "dato": "18.4930"}]}
+        ]
+    }
+}
 
 
 def fake_http(responses):
@@ -70,7 +76,9 @@ def test_respuestas_invalidas_dan_error_controlado(data, msg):
 
 def test_limita_la_frecuencia_segun_el_plan():
     sleeps, t = [], [0.0]
-    p = TwelveDataProvider(SECRET, per_minute=8, http=fake_http(QUOTE), sleep=sleeps.append, clock=lambda: t[0])
+    p = TwelveDataProvider(
+        SECRET, per_minute=8, http=fake_http(QUOTE), sleep=sleeps.append, clock=lambda: t[0]
+    )
     p.fetch_quote("A")
     p.fetch_quote("B")  # sin avanzar el reloj: debe esperar 60/8 s
     assert sleeps == [7.5]
@@ -79,7 +87,9 @@ def test_limita_la_frecuencia_segun_el_plan():
 def test_la_clave_va_en_la_url_pero_nunca_en_los_errores():
     http = fake_http(QUOTE)
     TwelveDataProvider(SECRET, http=http, sleep=lambda s: None).fetch_quote("AAA")
-    assert http.calls[0][0].startswith("https://api.twelvedata.com/quote?") and "symbol=AAA" in http.calls[0][0]
+    assert (
+        http.calls[0][0].startswith("https://api.twelvedata.com/quote?") and "symbol=AAA" in http.calls[0][0]
+    )
     with pytest.raises(ProviderError) as exc:
         td({"code": 401, "message": f"bad {SECRET}", "status": "error"}).fetch_quote("AAA")
     assert SECRET not in str(exc.value)
@@ -133,7 +143,13 @@ def held(db):
         InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value=t)
         out[t] = ins
     for t in ("AAA", "BBB"):  # CCC no tiene posición: no se consulta
-        record_buy(account=acc, instrument=out[t], quantity=D(1), price=D(10), executed_at=datetime(2026, 1, 1, tzinfo=UTC))
+        record_buy(
+            account=acc,
+            instrument=out[t],
+            quantity=D(1),
+            price=D(10),
+            executed_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
     return out
 
 
@@ -177,7 +193,9 @@ def test_comando_sin_claves_se_omite_sin_fallar(db, monkeypatch):
     monkeypatch.delenv("TWELVE_DATA_API_KEY", raising=False)
     monkeypatch.delenv("BANXICO_TOKEN", raising=False)
     out = StringIO()
-    call_command("refresh_market_data", "--no-fallback", stdout=out)  # sin respaldo ni claves: nada que consultar
+    call_command(
+        "refresh_market_data", "--no-fallback", stdout=out
+    )  # sin respaldo ni claves: nada que consultar
     assert out.getvalue().count("omitido") == 2
     monkeypatch.setenv("YAHOO_FALLBACK", "false")
     out = StringIO()

@@ -18,7 +18,10 @@ def test_empresa_perfecta_da_9_de_9_con_evidencia():
     assert r["score"] == 9 and r["status"] == "completo" and r["evaluable_criteria"] == 9
     c = by_id(r)
     assert c["roa_positive"]["evidence"]["roa"] == D(100) / D(1100)
-    assert c["liquidity_up"]["evidence"] == {"current_ratio": D(500) / D(300), "current_ratio_prev": D(400) / D(300)}
+    assert c["liquidity_up"]["evidence"] == {
+        "current_ratio": D(500) / D(300),
+        "current_ratio_prev": D(400) / D(300),
+    }
     assert [x["id"] for x in r["criteria"]] == [k for k, _ in CRITERIA]
 
 

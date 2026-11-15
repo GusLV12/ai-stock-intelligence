@@ -68,7 +68,7 @@ class PricesView(APIView):
             return Response(_price_data(mp))
         out = [
             _price_data(mp)
-            for ins in Instrument.objects.order_by("id")
+            for ins in Instrument.objects.filter(research_only=False).order_by("id")
             if (mp := latest_price(ins)) is not None
         ]
         return Response(out)

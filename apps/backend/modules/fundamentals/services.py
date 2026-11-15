@@ -12,7 +12,16 @@ from modules.instruments.models import Instrument, InstrumentIdentifier
 from .models import NUMERIC_FIELDS, FinancialYear
 
 MAX_ROWS = 2000
-NON_NEGATIVE = {"revenue", "total_assets", "current_assets", "current_liabilities", "long_term_debt", "total_debt", "cash", "capex"}
+NON_NEGATIVE = {
+    "revenue",
+    "total_assets",
+    "current_assets",
+    "current_liabilities",
+    "long_term_debt",
+    "total_debt",
+    "cash",
+    "capex",
+}
 POSITIVE = {"total_assets", "shares_outstanding"}
 CSV_COLUMNS = ["ticker", "fiscal_year", "period_end", "published_at", "currency", *NUMERIC_FIELDS]
 
@@ -71,7 +80,11 @@ def _parse_row(row: dict, lookup) -> dict:
     ca = values["current_assets"]
     if ca is not None and values["total_assets"] is not None and ca > values["total_assets"]:
         raise ValueError("current_assets no puede exceder total_assets")
-    if values["gross_profit"] is not None and values["revenue"] is not None and values["gross_profit"] > values["revenue"]:
+    if (
+        values["gross_profit"] is not None
+        and values["revenue"] is not None
+        and values["gross_profit"] > values["revenue"]
+    ):
         raise ValueError("gross_profit no puede exceder revenue")
     currency = (str(row.get("currency") or instrument.currency)).strip().upper()
     return {"instrument": instrument, "fiscal_year": year, "period_end": period_end, "published_at": published,
@@ -83,7 +96,11 @@ def _lookup():
 
     def find(ticker):
         if ticker not in cache:
-            ident = InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker).select_related("instrument").first()
+            ident = (
+                InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker)
+                .select_related("instrument")
+                .first()
+            )
             cache[ticker] = ident.instrument if ident else None
         return cache[ticker]
 
@@ -115,13 +132,19 @@ def import_financials(rows: list[dict], source: str = "MANUAL") -> dict:
     for n, p in enumerate(parsed_rows, start=1):
         key = (p["instrument"].id, p["fiscal_year"])
         if key in seen:
-            errors.append({"row": n, "error": "año fiscal repetido para el mismo instrumento en este archivo"})
+            errors.append(
+                {"row": n, "error": "año fiscal repetido para el mismo instrumento en este archivo"}
+            )
         seen.add(key)
     if errors:
         raise FundamentalsError("Hay filas inválidas; no se importó nada.", errors)
     result = {"created": 0, "new_versions": 0, "unchanged": 0}
     for p in parsed_rows:
-        latest = FinancialYear.objects.filter(instrument=p["instrument"], fiscal_year=p["fiscal_year"]).order_by("-version").first()
+        latest = (
+            FinancialYear.objects.filter(instrument=p["instrument"], fiscal_year=p["fiscal_year"])
+            .order_by("-version")
+            .first()
+        )
         if latest is None:
             FinancialYear.objects.create(source=source, version=1, **p)
             result["created"] += 1

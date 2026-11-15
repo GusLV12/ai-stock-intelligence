@@ -35,19 +35,39 @@ def years(ticker, good=True, base=2024, **extra25):
                "current_assets": "300", "current_liabilities": "400", "long_term_debt": "500", "total_debt": "700", "shares_outstanding": "130"}  # fmt: skip
     y25.update(extra25)
     return [
-        {"ticker": ticker, "fiscal_year": base, "period_end": f"{base}-12-31", "published_at": f"{base + 1}-02-20", **y24},
-        {"ticker": ticker, "fiscal_year": base + 1, "period_end": f"{base + 1}-12-31", "published_at": f"{base + 2}-02-20", **y25},
+        {
+            "ticker": ticker,
+            "fiscal_year": base,
+            "period_end": f"{base}-12-31",
+            "published_at": f"{base + 1}-02-20",
+            **y24,
+        },
+        {
+            "ticker": ticker,
+            "fiscal_year": base + 1,
+            "period_end": f"{base + 1}-12-31",
+            "published_at": f"{base + 2}-02-20",
+            **y25,
+        },
     ]
 
 
 def value(user, ins, central, when=None):
-    return Valuation.objects.create(user=user, instrument=ins, model_version="valuation-v1", inputs={}, output={"central_value": central})
+    return Valuation.objects.create(
+        user=user, instrument=ins, model_version="valuation-v1", inputs={}, output={"central_value": central}
+    )
 
 
 @pytest.fixture
 def world(db):
     user = get_user_model().objects.create_user("ana", password="x")
-    a, b, bank, nodata, etf = make("AAA"), make("BBB"), make("BNK", sector="bank"), make("NOD"), make("ETF1", cls="ETF")
+    a, b, bank, nodata, etf = (
+        make("AAA"),
+        make("BBB"),
+        make("BNK", sector="bank"),
+        make("NOD"),
+        make("ETF1", cls="ETF"),
+    )
     import_financials(years("AAA", True) + years("BBB", False) + years("BNK", True))
     now = datetime.now(UTC)
     for ins, price in ((a, D(70)), (b, D(50)), (bank, D(10))):
@@ -63,7 +83,15 @@ def by_ticker(res):
 
 def test_pasa_la_empresa_buena_y_se_explica_por_que_falla_la_mala(world):
     user, _ = world
-    res = run_screen(user, {"min_fscore": 7, "min_margin_of_safety": "0.2", "require_positive_fcf": True, "max_debt_to_assets": "0.5"})
+    res = run_screen(
+        user,
+        {
+            "min_fscore": 7,
+            "min_margin_of_safety": "0.2",
+            "require_positive_fcf": True,
+            "max_debt_to_assets": "0.5",
+        },
+    )
     rows = by_ticker(res)
     assert rows["AAA"]["passed"] is True and res["candidates"] == ["AAA"]
     assert rows["BBB"]["passed"] is False
@@ -76,7 +104,10 @@ def test_dato_faltante_excluye_con_motivo_no_aprueba_ni_cuenta_cero(world):
     res = run_screen(user, {"min_fscore": 7})
     bank = by_ticker(res)["BNK"]
     assert bank["passed"] is False and bank["missing_data_filters"] == ["min_fscore"]
-    assert bank["fscore"]["status"] == "no_aplica" and bank["ratings"]["financial_quality"]["label"] == "No aplica"
+    assert (
+        bank["fscore"]["status"] == "no_aplica"
+        and bank["ratings"]["financial_quality"]["label"] == "No aplica"
+    )
     # sin valoración guardada tampoco aprueba el filtro de margen
     res = run_screen(user, {"min_margin_of_safety": "0.1"})
     assert by_ticker(res)["BNK"]["missing_data_filters"] == ["min_margin_of_safety"]
@@ -109,7 +140,11 @@ def test_ratings_por_dimension_sin_puntaje_agregado(world):
     user, _ = world
     r = by_ticker(run_screen(user, {}))
     a, b = r["AAA"]["ratings"], r["BBB"]["ratings"]
-    assert a["valuation"]["label"] == "Atractiva" and a["financial_quality"]["label"] == "Alta" and a["growth"]["label"] == "Alto"
+    assert (
+        a["valuation"]["label"] == "Atractiva"
+        and a["financial_quality"]["label"] == "Alta"
+        and a["growth"]["label"] == "Alto"
+    )
     assert a["risk"]["label"] == "Bajo" and a["data_quality"]["label"] == "Buena"
     assert b["valuation"]["label"] == "Neutral" and b["financial_quality"]["label"] == "Baja"
     assert b["growth"]["label"] == "Negativo" and b["risk"]["label"] == "Alto"
@@ -218,4 +253,9 @@ def test_las_corridas_son_inmutables(world):
 def test_csv_neutraliza_formulas():
     from .screener_api import _safe
 
-    assert _safe("=SUM(A1)") == "'=SUM(A1)" and _safe("AAA") == "AAA" and _safe("-5") == "-5" and _safe("-x") == "'-x"
+    assert (
+        _safe("=SUM(A1)") == "'=SUM(A1)"
+        and _safe("AAA") == "AAA"
+        and _safe("-5") == "-5"
+        and _safe("-x") == "'-x"
+    )

@@ -56,8 +56,20 @@ def test_todo_o_nada_y_errores_por_fila(aaa):
     with pytest.raises(FundamentalsError) as exc:
         import_financials(rows)
     msgs = " | ".join(e["error"] for e in exc.value.errors)
-    for frag in ("ticker desconocido", "entero requerido", "fecha ISO", "no puede ser negativo", "número inválido",
-                 "mayor que cero", "fuera de rango", "anterior a period_end", "current_assets", "gross_profit", "ningún dato", "objeto"):
+    for frag in (
+        "ticker desconocido",
+        "entero requerido",
+        "fecha ISO",
+        "no puede ser negativo",
+        "número inválido",
+        "mayor que cero",
+        "fuera de rango",
+        "anterior a period_end",
+        "current_assets",
+        "gross_profit",
+        "ningún dato",
+        "objeto",
+    ):
         assert frag in msgs, frag
     assert FinancialYear.objects.count() == 0  # la fila 1 era válida pero no se guardó
 

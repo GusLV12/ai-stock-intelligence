@@ -67,12 +67,16 @@ def test_entradas_invalidas_dan_400(ctx, payload):
 
 def test_tipo_de_cambio(ctx):
     client, _ = ctx
-    r = client.post("/api/v1/market/fx", {"base": "usd", "quote": "mxn", "rate": "18.4", "observed_at": when()})
+    r = client.post(
+        "/api/v1/market/fx", {"base": "usd", "quote": "mxn", "rate": "18.4", "observed_at": when()}
+    )
     assert r.status_code == 201 and r.json()["pair"] == "USD/MXN"
     assert client.get("/api/v1/market/fx").json()["rate"] == "18.4"
     assert client.get("/api/v1/market/fx?base=EUR&quote=MXN").status_code == 404
     assert client.get("/api/v1/market/prices?instrument=999999").status_code == 404
-    bad = client.post("/api/v1/market/fx", {"base": "USD", "quote": "USD", "rate": "1", "observed_at": when()})
+    bad = client.post(
+        "/api/v1/market/fx", {"base": "USD", "quote": "USD", "rate": "1", "observed_at": when()}
+    )
     assert bad.status_code == 400
 
 

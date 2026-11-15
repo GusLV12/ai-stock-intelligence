@@ -20,7 +20,9 @@ CSV_COLUMNS = [
 def _safe(value) -> str:
     """Neutraliza textos que una hoja de cálculo interpretaría como fórmula."""
     text = "" if value is None else str(value)
-    return "'" + text if text[:1] in ("=", "+", "@") or (text[:1] == "-" and not text[1:2].isdigit()) else text
+    return (
+        "'" + text if text[:1] in ("=", "+", "@") or (text[:1] == "-" and not text[1:2].isdigit()) else text
+    )
 
 
 def to_csv(results: dict) -> str:
@@ -54,15 +56,23 @@ class RunScreenView(APIView):
             user=request.user, model_version=MODEL_VERSION, params=results["params"],
             coverage=results["coverage"], results=results,
         )  # fmt: skip
-        return Response({"id": run.id, "created_at": run.created_at, **results}, status=status.HTTP_201_CREATED)
+        return Response(
+            {"id": run.id, "created_at": run.created_at, **results}, status=status.HTTP_201_CREATED
+        )
 
 
 class RunListView(APIView):
     def get(self, request):
         return Response(
             [
-                {"id": r.id, "created_at": r.created_at, "model_version": r.model_version, "params": r.params,
-                 "coverage": r.coverage, "candidates": r.results.get("candidates", [])}
+                {
+                    "id": r.id,
+                    "created_at": r.created_at,
+                    "model_version": r.model_version,
+                    "params": r.params,
+                    "coverage": r.coverage,
+                    "candidates": r.results.get("candidates", []),
+                }
                 for r in ScreenRun.objects.filter(user=request.user)[:50]
             ]
         )

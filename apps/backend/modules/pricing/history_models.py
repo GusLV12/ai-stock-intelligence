@@ -27,7 +27,9 @@ class DailyClose(models.Model):
     class Meta:
         ordering = ["instrument_id", "date"]
         constraints = [
-            models.UniqueConstraint(fields=["instrument", "date", "provider"], name="uniq_close_per_day_provider"),
+            models.UniqueConstraint(
+                fields=["instrument", "date", "provider"], name="uniq_close_per_day_provider"
+            ),
             models.CheckConstraint(condition=Q(close__gt=0), name="close_positive"),
         ]
         indexes = [models.Index(fields=["instrument", "date"])]

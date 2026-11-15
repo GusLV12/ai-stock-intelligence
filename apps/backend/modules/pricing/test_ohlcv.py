@@ -40,9 +40,14 @@ def test_velas_completas_con_volumen():
 
 @pytest.mark.parametrize(
     "o,h,low,c",
-    [(10.0, 9.0, 8.0, 9.5),  # high por debajo del cierre
-     (10.0, 12.0, 11.0, 11.5),  # low por encima de la apertura
-     (None, 12.0, 9.0, 10.0), (10.0, None, 9.0, 10.0), (10.0, 12.0, None, 10.0), (-1.0, 12.0, 9.0, 10.0)],
+    [
+        (10.0, 9.0, 8.0, 9.5),  # high por debajo del cierre
+        (10.0, 12.0, 11.0, 11.5),  # low por encima de la apertura
+        (None, 12.0, 9.0, 10.0),
+        (10.0, None, 9.0, 10.0),
+        (10.0, 12.0, None, 10.0),
+        (-1.0, 12.0, 9.0, 10.0),
+    ],
 )
 def test_vela_incoherente_o_incompleta_solo_conserva_el_cierre(o, h, low, c):
     out = provider(response([o], [h], [low], [c], [100])).fetch_history("AAA", "1mo")
@@ -63,7 +68,9 @@ def held(db):
     acc = InvestmentAccount.objects.create(owner=user, name="GBM", broker="GBM_USA")
     ins = Instrument.objects.create(asset_class="STOCK", name="AAA", quantity_scale=8)
     InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value="AAA")
-    record_buy(account=acc, instrument=ins, quantity=D(1), price=D(10), executed_at=datetime(2026, 1, 1, tzinfo=UTC))
+    record_buy(
+        account=acc, instrument=ins, quantity=D(1), price=D(10), executed_at=datetime(2026, 1, 1, tzinfo=UTC)
+    )
     return ins
 
 
@@ -78,7 +85,9 @@ def test_se_guardan_las_velas_y_no_se_duplican(held):
 
 
 def test_cierres_guardados_sin_vela_se_completan_sin_tocar_el_cierre(held):
-    DailyClose.objects.create(instrument=held, date=date(2026, 11, 10), close=D(11), currency="USD", provider="YAHOO_UNOFFICIAL")
+    DailyClose.objects.create(
+        instrument=held, date=date(2026, 11, 10), close=D(11), currency="USD", provider="YAHOO_UNOFFICIAL"
+    )
     resp = response([10.0], [11.5], [9.5], [11.0], [1000])
     res = refresh_history(provider(resp), "1mo")
     row = DailyClose.objects.get()

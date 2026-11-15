@@ -34,7 +34,9 @@ def latest_price(instrument: Instrument) -> MarketPrice | None:
     return MarketPrice.objects.filter(instrument=instrument).first()  # orden: más reciente primero
 
 
-def record_fx(base: str, quote: str, rate: Decimal, provider: str, observed_at: datetime) -> tuple[FxRate, bool]:
+def record_fx(
+    base: str, quote: str, rate: Decimal, provider: str, observed_at: datetime
+) -> tuple[FxRate, bool]:
     if rate <= 0:
         raise PricingError("El tipo de cambio debe ser positivo.")
     if observed_at.tzinfo is None:

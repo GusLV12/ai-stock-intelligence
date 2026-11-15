@@ -41,8 +41,12 @@ class InstrumentFinancialsView(APIView):
         return Response(
             [
                 {
-                    "fiscal_year": r.fiscal_year, "version": r.version, "period_end": r.period_end,
-                    "published_at": r.published_at, "currency": r.currency, "source": r.source,
+                    "fiscal_year": r.fiscal_year,
+                    "version": r.version,
+                    "period_end": r.period_end,
+                    "published_at": r.published_at,
+                    "currency": r.currency,
+                    "source": r.source,
                     "free_cash_flow": None if r.free_cash_flow is None else str(r.free_cash_flow),
                     **{f: None if getattr(r, f) is None else str(getattr(r, f)) for f in NUMERIC_FIELDS},
                 }

@@ -113,7 +113,7 @@ function Detail({ id, onVerified }) {
             </tbody>
           </table>
         </div>
-        <p className="muted small">Intento {d.trials} sobre estos mismos datos: el umbral de t se endurece con cada intento adicional (pruebas múltiples).</p>
+        <p className="muted small">Base de retorno: {(r.meta.return_basis?.raw ?? 0) === 0 ? "dividendos reinvertidos (cierre ajustado)" : `${r.meta.return_basis?.raw} de ${r.meta.universe.length} emisoras sin ajuste por dividendos`}. Intento {d.trials} sobre estos mismos datos: el umbral de t se endurece con cada intento adicional (pruebas múltiples).</p>
       </div>
 
       <div className="card">
@@ -140,7 +140,22 @@ function Detail({ id, onVerified }) {
             </tbody>
           </table>
         </div>
-        <p className="muted small">Partición: entrenamiento {r.meta.split.train[0]} → {r.meta.split.train[1]} ({r.meta.split.train[2]} fechas); validación {r.meta.split.valid[0]} → {r.meta.split.valid[1]}; prueba {r.meta.split.test[0]} → {r.meta.split.test[1]} ({r.meta.split.test[2]} fechas). Purga de {r.meta.split.gap_sessions} sesiones entre segmentos.</p>
+        <p className="muted small">
+          {r.meta.split.mode === "walk_forward" ? `Walk-forward: ${(r.meta.split.folds ?? []).length} bloques de prueba consecutivos; en cada uno se entrena solo con lo anterior.` : "Una sola partición temporal."} Purga de {r.meta.split.gap_sessions} sesiones entre segmentos.
+        </p>
+        <div className="tablewrap">
+          <table>
+            <thead><tr><th>Bloque</th><th>Entrenamiento</th><th>Validación</th><th>Prueba</th><th>Rank IC del candidato</th></tr></thead>
+            <tbody>
+              {(r.meta.split.folds ?? []).map((f, i) => (
+                <tr key={f.test[0]}>
+                  <td>{i + 1}</td><td>{f.train[0]} → {f.train[1]} ({f.train[2]})</td><td>{f.valid[0]} → {f.valid[1]} ({f.valid[2]})</td><td>{f.test[0]} → {f.test[1]} ({f.test[2]})</td>
+                  <td>{ic(cand.folds?.[i]?.rank_ic)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {bt && (
@@ -193,6 +208,7 @@ export default function QuantLab() {
   const [models, setModels] = useState(null);
   const [seed, setSeed] = useState("0");
   const [topK, setTopK] = useState("3");
+  const [folds, setFolds] = useState("4");
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -211,7 +227,7 @@ export default function QuantLab() {
     setRunning(true);
     setError(null);
     try {
-      const d = await api("/api/v1/quant/experiments", { method: "POST", body: { horizon, models: chosen, seed: Number(seed), top_k: Number(topK) } });
+      const d = await api("/api/v1/quant/experiments", { method: "POST", body: { horizon, models: chosen, seed: Number(seed), top_k: Number(topK), folds: Number(folds) } });
       setSelected(d.id);
       setReload((n) => n + 1);
     } catch (err) {
@@ -253,6 +269,7 @@ export default function QuantLab() {
           <div className="row-actions">
             <label className="field">Horizonte<select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>{(overview?.horizons ?? [5, 20]).map((h) => (<option key={h} value={h}>{h} sesiones</option>))}</select></label>
             <label className="field">Semilla<input type="number" min="0" value={seed} onChange={(e) => setSeed(e.target.value)} /></label>
+            <label className="field">Bloques walk-forward<input type="number" min="1" max={overview?.max_folds ?? 8} value={folds} onChange={(e) => setFolds(e.target.value)} /></label>
             <label className="field">Posiciones (top-K)<input type="number" min="1" max="20" value={topK} onChange={(e) => setTopK(e.target.value)} /></label>
           </div>
           <fieldset className="row-actions" style={{ border: 0, padding: 0 }}>

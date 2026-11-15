@@ -22,7 +22,14 @@ CRITERIA = [
     ("gross_margin_up", "Mayor margen bruto"),
     ("asset_turnover_up", "Mayor rotación de activos"),
 ]
-PREV_NEEDED = {"roa_improved", "leverage_down", "liquidity_up", "no_dilution", "gross_margin_up", "asset_turnover_up"}
+PREV_NEEDED = {
+    "roa_improved",
+    "leverage_down",
+    "liquidity_up",
+    "no_dilution",
+    "gross_margin_up",
+    "asset_turnover_up",
+}
 
 
 def _ratio(num, den):
@@ -48,10 +55,17 @@ def _cmp(a, b, op):
     return op(a, b)
 
 
-def evaluate(cur: dict, prev: dict | None, fiscal_year: int | None = None, prev_year: int | None = None) -> dict:
+def evaluate(
+    cur: dict, prev: dict | None, fiscal_year: int | None = None, prev_year: int | None = None
+) -> dict:
     """cur/prev: dicts con net_income, cfo, total_assets, long_term_debt, current_assets, current_liabilities,
     shares_outstanding, gross_profit, revenue (Decimal o None). prev puede ser None."""
-    if prev is not None and fiscal_year is not None and prev_year is not None and prev_year != fiscal_year - 1:
+    if (
+        prev is not None
+        and fiscal_year is not None
+        and prev_year is not None
+        and prev_year != fiscal_year - 1
+    ):
         prev = None  # años no consecutivos: la comparación año contra año no es válida
         gap = True
     else:
@@ -64,7 +78,10 @@ def evaluate(cur: dict, prev: dict | None, fiscal_year: int | None = None, prev_
     raw = {
         "roa_positive": (_cmp(mc["roa"], Decimal(0), lambda a, b: a > b), {"roa": mc["roa"]}),
         "cfo_positive": (_cmp(cfo, Decimal(0), lambda a, b: a > b), {"cfo": cfo}),
-        "roa_improved": (_cmp(mc["roa"], mp["roa"], lambda a, b: a > b), {"roa": mc["roa"], "roa_prev": mp["roa"]}),
+        "roa_improved": (
+            _cmp(mc["roa"], mp["roa"], lambda a, b: a > b),
+            {"roa": mc["roa"], "roa_prev": mp["roa"]},
+        ),
         "accruals": (_cmp(cfo, ni, lambda a, b: a > b), {"cfo": cfo, "net_income": ni}),
         "leverage_down": (
             _cmp(mc["ltd_to_assets"], mp["ltd_to_assets"], lambda a, b: a < b),
@@ -74,7 +91,10 @@ def evaluate(cur: dict, prev: dict | None, fiscal_year: int | None = None, prev_
             _cmp(mc["current_ratio"], mp["current_ratio"], lambda a, b: a > b),
             {"current_ratio": mc["current_ratio"], "current_ratio_prev": mp["current_ratio"]},
         ),
-        "no_dilution": (_cmp(shares_c, shares_p, lambda a, b: a <= b), {"shares": shares_c, "shares_prev": shares_p}),
+        "no_dilution": (
+            _cmp(shares_c, shares_p, lambda a, b: a <= b),
+            {"shares": shares_c, "shares_prev": shares_p},
+        ),
         "gross_margin_up": (
             _cmp(mc["gross_margin"], mp["gross_margin"], lambda a, b: a > b),
             {"gross_margin": mc["gross_margin"], "gross_margin_prev": mp["gross_margin"]},
@@ -90,12 +110,20 @@ def evaluate(cur: dict, prev: dict | None, fiscal_year: int | None = None, prev_
         reason = None
         if passed is None:
             if key in PREV_NEEDED and prev is None:
-                reason = "No hay datos del año anterior consecutivo." if gap else "No hay datos del año anterior."
+                reason = (
+                    "No hay datos del año anterior consecutivo." if gap else "No hay datos del año anterior."
+                )
             else:
                 reason = "Faltan datos para calcularlo."
         criteria.append(
-            {"id": key, "label": label, "passed": passed, "points": None if passed is None else int(passed),
-             "evidence": evidence, "reason": reason}
+            {
+                "id": key,
+                "label": label,
+                "passed": passed,
+                "points": None if passed is None else int(passed),
+                "evidence": evidence,
+                "reason": reason,
+            }
         )
     evaluable = sum(1 for c in criteria if c["passed"] is not None)
     score = sum(c["points"] for c in criteria if c["points"] is not None)

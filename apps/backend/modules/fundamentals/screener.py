@@ -94,10 +94,21 @@ def _valuation_for(user, instrument, price):
         return None
     central = v.output.get("central_value")
     if central is None:
-        return {"id": v.id, "central_value": None, "margin_of_safety": None, "note": "La valoración no dio valor central."}
+        return {
+            "id": v.id,
+            "central_value": None,
+            "margin_of_safety": None,
+            "note": "La valoración no dio valor central.",
+        }
     central = Decimal(central)
     margin = None if price is None or central <= 0 else (central - price) / central
-    return {"id": v.id, "central_value": central, "margin_of_safety": margin, "created_at": v.created_at, "note": None}
+    return {
+        "id": v.id,
+        "central_value": central,
+        "margin_of_safety": margin,
+        "created_at": v.created_at,
+        "note": None,
+    }
 
 
 def _rating(label, basis):
@@ -120,16 +131,24 @@ def _ratings(fscore, margin, growth, debt_ratio, current_ratio, coverage, fin_mo
         quality = _rating("No evaluable", f"Solo {fscore['evaluable_criteria']} de 9 criterios evaluables.")
     else:
         s = fscore["score"]
-        quality = _rating("Alta" if s >= 7 else ("Media" if s >= 4 else "Baja"), f"F-Score {s}/{fscore['evaluable_criteria']}.")
+        quality = _rating(
+            "Alta" if s >= 7 else ("Media" if s >= 4 else "Baja"),
+            f"F-Score {s}/{fscore['evaluable_criteria']}.",
+        )
 
     if growth is None:
         grow = _rating("No evaluable", "Sin dos años consecutivos de ventas.")
     else:
-        grow = _rating("Alto" if growth > Decimal("0.10") else ("Moderado" if growth >= 0 else "Negativo"), f"Ventas {growth:+.1%} anual.")
+        grow = _rating(
+            "Alto" if growth > Decimal("0.10") else ("Moderado" if growth >= 0 else "Negativo"),
+            f"Ventas {growth:+.1%} anual.",
+        )
 
     if debt_ratio is None and current_ratio is None:
         risk = _rating("No evaluable", "Sin datos de deuda ni de liquidez.")
-    elif (debt_ratio is not None and debt_ratio > Decimal("0.6")) or (current_ratio is not None and current_ratio < 1):
+    elif (debt_ratio is not None and debt_ratio > Decimal("0.6")) or (
+        current_ratio is not None and current_ratio < 1
+    ):
         risk = _rating("Alto", "Deuda/activos > 60% o razón corriente < 1.")
     elif debt_ratio is not None and debt_ratio > Decimal("0.4"):
         risk = _rating("Medio", "Deuda/activos entre 40% y 60%.")
@@ -144,7 +163,13 @@ def _ratings(fscore, margin, growth, debt_ratio, current_ratio, coverage, fin_mo
         dq = _rating("Parcial", "Faltan datos o están desactualizados.")
     else:
         dq = _rating("Pobre", "Cobertura baja de datos.")
-    return {"valuation": valuation, "financial_quality": quality, "growth": grow, "risk": risk, "data_quality": dq}
+    return {
+        "valuation": valuation,
+        "financial_quality": quality,
+        "growth": grow,
+        "risk": risk,
+        "data_quality": dq,
+    }
 
 
 def _check(name, passed, detail):
@@ -159,7 +184,12 @@ def _evaluate_instrument(user, instrument, f, today):
     if instrument.sector_kind == "bank":
         fscore = piotroski.not_applicable("Sector financiero: el F-Score original lo excluye.")
     else:
-        fscore = piotroski.evaluate(_as_dict(cur), _as_dict(prev) if prev else None, cur.fiscal_year, prev.fiscal_year if prev else None)
+        fscore = piotroski.evaluate(
+            _as_dict(cur),
+            _as_dict(prev) if prev else None,
+            cur.fiscal_year,
+            prev.fiscal_year if prev else None,
+        )
 
     mp = latest_price(instrument)
     price = mp.price if mp else None
@@ -167,10 +197,16 @@ def _evaluate_instrument(user, instrument, f, today):
     valuation = _valuation_for(user, instrument, price)
     margin = valuation["margin_of_safety"] if valuation else None
     fcf = cur.free_cash_flow
-    debt_ratio = _ratio(cur.total_debt if cur.total_debt is not None else cur.long_term_debt, cur.total_assets)
+    debt_ratio = _ratio(
+        cur.total_debt if cur.total_debt is not None else cur.long_term_debt, cur.total_assets
+    )
     current_ratio = _ratio(cur.current_assets, cur.current_liabilities)
     consecutive = prev is not None and prev.fiscal_year == cur.fiscal_year - 1
-    growth = _ratio(cur.revenue - prev.revenue, prev.revenue) if consecutive and cur.revenue is not None and prev.revenue else None
+    growth = (
+        _ratio(cur.revenue - prev.revenue, prev.revenue)
+        if consecutive and cur.revenue is not None and prev.revenue
+        else None
+    )
     anchor = cur.published_at or cur.period_end
     fin_months = _months_between(anchor, today)
     coverage = Decimal(sum(1 for k in KEY_FIELDS if getattr(cur, k) is not None)) / Decimal(len(KEY_FIELDS))
@@ -179,10 +215,24 @@ def _evaluate_instrument(user, instrument, f, today):
     if f["min_fscore"] is not None:
         if fscore["status"] == "no_aplica":
             checks.append(_check("min_fscore", None, "F-Score no aplica a este sector."))
-        elif fscore["status"] == "no_evaluable" or (fscore["status"] == "parcial" and not f["allow_partial_fscore"]):
-            checks.append(_check("min_fscore", None, f"F-Score {fscore['status']} ({fscore['evaluable_criteria']}/9 criterios)."))
+        elif fscore["status"] == "no_evaluable" or (
+            fscore["status"] == "parcial" and not f["allow_partial_fscore"]
+        ):
+            checks.append(
+                _check(
+                    "min_fscore",
+                    None,
+                    f"F-Score {fscore['status']} ({fscore['evaluable_criteria']}/9 criterios).",
+                )
+            )
         else:
-            checks.append(_check("min_fscore", fscore["score"] >= f["min_fscore"], f"F-Score {fscore['score']} (mínimo {f['min_fscore']})."))
+            checks.append(
+                _check(
+                    "min_fscore",
+                    fscore["score"] >= f["min_fscore"],
+                    f"F-Score {fscore['score']} (mínimo {f['min_fscore']}).",
+                )
+            )
     if f["min_margin_of_safety"] is not None:
         checks.append(_check("min_margin_of_safety", None if margin is None else margin >= f["min_margin_of_safety"],
                              "Sin valoración guardada o sin precio." if margin is None else f"Margen {margin:.1%}."))  # fmt: skip
@@ -195,13 +245,20 @@ def _evaluate_instrument(user, instrument, f, today):
         checks.append(_check("min_revenue_growth", None if growth is None else growth >= f["min_revenue_growth"],
                              "Sin dos años consecutivos." if growth is None else f"Ventas {growth:+.1%}."))  # fmt: skip
     if f["require_fresh_data"]:
-        checks.append(_check("require_fresh_data", fin_months <= STALE_MONTHS, f"Estados de hace {fin_months:.0f} meses."))
+        checks.append(
+            _check(
+                "require_fresh_data", fin_months <= STALE_MONTHS, f"Estados de hace {fin_months:.0f} meses."
+            )
+        )
 
     failed = [c["filter"] for c in checks if c["passed"] is False]
     missing = [c["filter"] for c in checks if c["passed"] is None]
     return {
         "instrument": instrument.id,
-        "ticker": next(iter(instrument.identifiers.filter(kind="TICKER").values_list("value", flat=True)), instrument.name),
+        "ticker": next(
+            iter(instrument.identifiers.filter(kind="TICKER").values_list("value", flat=True)),
+            instrument.name,
+        ),
         "name": instrument.name,
         "sector_kind": instrument.sector_kind,
         "passed": not failed and not missing,
@@ -210,12 +267,21 @@ def _evaluate_instrument(user, instrument, f, today):
         "checks": checks,
         "fscore": fscore,
         "metrics": {
-            "free_cash_flow": fcf, "debt_to_assets": debt_ratio, "current_ratio": current_ratio,
-            "revenue_growth": growth, "margin_of_safety": margin, "price": price,
+            "free_cash_flow": fcf,
+            "debt_to_assets": debt_ratio,
+            "current_ratio": current_ratio,
+            "revenue_growth": growth,
+            "margin_of_safety": margin,
+            "price": price,
         },
-        "ratings": _ratings(fscore, margin, growth, debt_ratio, current_ratio, coverage, fin_months, price_age),
+        "ratings": _ratings(
+            fscore, margin, growth, debt_ratio, current_ratio, coverage, fin_months, price_age
+        ),
         "data_refs": {
-            "fiscal_year": cur.fiscal_year, "version": cur.version, "published_at": cur.published_at, "source": cur.source,
+            "fiscal_year": cur.fiscal_year,
+            "version": cur.version,
+            "published_at": cur.published_at,
+            "source": cur.source,
             "price": {"provider": mp.provider, "observed_at": mp.observed_at} if mp else None,
             "valuation_id": valuation["id"] if valuation else None,
         },
@@ -225,18 +291,28 @@ def _evaluate_instrument(user, instrument, f, today):
 def run_screen(user, raw_params: dict) -> dict:
     f = parse_params(raw_params)
     today = f["as_of"] or date.today()
-    universe = Instrument.objects.filter(asset_class__in=["STOCK", "ADR"]).prefetch_related("identifiers").order_by("id")
+    universe = (
+        Instrument.objects.filter(asset_class__in=["STOCK", "ADR"], research_only=False)
+        .prefetch_related("identifiers")
+        .order_by("id")
+    )
     rows, no_data = [], []
     for ins in universe:
         row = _evaluate_instrument(user, ins, f, today)
         if row is None:
-            tickers = InstrumentIdentifier.objects.filter(instrument=ins, kind="TICKER").values_list("value", flat=True)
+            tickers = InstrumentIdentifier.objects.filter(instrument=ins, kind="TICKER").values_list(
+                "value", flat=True
+            )
             no_data.append(next(iter(tickers), ins.name))
         else:
             rows.append(row)
     candidates = sorted(
         (r for r in rows if r["passed"]),
-        key=lambda r: (r["metrics"]["margin_of_safety"] is None, -(r["metrics"]["margin_of_safety"] or 0), -(r["fscore"]["score"] or 0)),
+        key=lambda r: (
+            r["metrics"]["margin_of_safety"] is None,
+            -(r["metrics"]["margin_of_safety"] or 0),
+            -(r["fscore"]["score"] or 0),
+        ),
     )
     params_out = {k: (v.isoformat() if isinstance(v, date) else v) for k, v in f.items()}
     return plain(
@@ -244,7 +320,9 @@ def run_screen(user, raw_params: dict) -> dict:
             "model_version": MODEL_VERSION,
             "params": params_out,
             "coverage": {
-                "universe": universe.count(), "with_financials": len(rows), "passed": len(candidates),
+                "universe": universe.count(),
+                "with_financials": len(rows),
+                "passed": len(candidates),
                 "without_financials": no_data,
             },
             "candidates": [r["ticker"] for r in candidates],

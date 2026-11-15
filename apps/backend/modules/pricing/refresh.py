@@ -38,7 +38,9 @@ def refresh_prices(providers) -> dict:
     open_breakers: set[int] = set()
     for ticker, instrument in sorted(held_tickers().items()):
         if len(open_breakers) == len(chain):
-            result["failed"]["_abortado"] = "Todos los proveedores quedaron fuera de servicio; el resto no se consultó."
+            result["failed"]["_abortado"] = (
+                "Todos los proveedores quedaron fuera de servicio; el resto no se consultó."
+            )
             break
         errors, done = [], False
         for idx, provider in enumerate(chain):
