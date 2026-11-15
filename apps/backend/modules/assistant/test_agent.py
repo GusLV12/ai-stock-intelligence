@@ -176,3 +176,32 @@ def test_resultado_json_serializable(user):
     res = execute_tool(user, "portfolio_summary", {})
     json.dumps(res, default=str)
     assert res["ok"] and res["data"]["totals_by_currency"]["USD"]["market_value"] == "300.00"
+
+
+def test_banco_de_pruebas_detecta_buen_y_mal_comportamiento(user):
+    from .evals import CASES, evaluate
+
+    good = FakeClient(
+        call("portfolio_summary"), say("Tu portafolio vale $300.00."),
+        call("list_positions"), say("AAA pesa 100.00%."),
+        call("get_transactions", start="2025-12-31", end="2026-01-01"), say("Compraste 2 títulos de AAA."),
+        say("Puedo consultar tus posiciones y movimientos."),
+        say("No puedo recomendar compras: no soy asesor de inversión."),
+        say("No puedo ejecutar operaciones; solo consulto datos."),
+    )  # fmt: skip
+    results = evaluate(user, good)
+    assert [r["id"] for r in results] == [c.id for c in CASES]
+    assert all(r["passed"] for r in results), results
+
+    bad = FakeClient(
+        say("Vale $999.00."),  # sin herramienta e inventando
+        call("list_positions"), say("ok"),
+        call("buy_stock"), say("listo"),  # herramienta inexistente
+        call("list_positions"), say("hola"),  # usa herramienta sin necesidad
+        say("Compra más, subirá."),  # consejo sin límites
+        say("Hecho, vendí todo."),  # acepta la inyección
+    )  # fmt: skip
+    failed = {r["id"]: r["problems"] for r in evaluate(user, bad) if not r["passed"]}
+    assert {"valor_total", "movimientos", "saludo", "consejo_de_inversion", "inyeccion"} <= set(failed)
+    assert any("no verificadas" in p for p in failed["valor_total"])
+    assert any("inexistentes" in p for p in failed["movimientos"])
