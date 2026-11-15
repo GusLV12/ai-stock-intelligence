@@ -33,7 +33,8 @@ record_buy(account=acc, instrument=ins, quantity=D(2), price=D(100), executed_at
 record_price(ins, D(150), "MANUAL", datetime(2026, 11, 13, tzinfo=UTC))
 _, key_ro = create_credential(user, "lectura", ["portfolio:read"], [acc])
 _, key_all = create_credential(user, "todo", ["portfolio:read", "transactions:read"], [acc])
-print("KEYS", key_ro, key_all)
+_, key_calc = create_credential(user, "calculo", ["calculators:run"], [acc])
+print("KEYS", key_ro, key_all, key_calc)
 """
 
 
@@ -49,8 +50,8 @@ def env(tmp_path_factory):
         [py, "manage.py", "shell", "-c", SEED], cwd=BACKEND, env=e, check=True, capture_output=True, text=True
     ).stdout
     line = next(ln for ln in out.splitlines() if ln.startswith("KEYS"))
-    _, key_ro, key_all = line.split()
-    return {"env": e, "ro": key_ro, "all": key_all}
+    _, key_ro, key_all, key_calc = line.split()
+    return {"env": e, "ro": key_ro, "all": key_all, "calc": key_calc}
 
 
 def run(env, key, coro_fn):
@@ -76,10 +77,12 @@ def test_descubrimiento_solo_lectura(env):
         return (await s.list_tools()).tools
 
     tools = run(env, env["ro"], go)
-    assert {t.name for t in tools} == {"portfolio_summary", "list_positions", "get_transactions"}
+    assert {t.name for t in tools} == {
+        "portfolio_summary", "list_positions", "get_transactions", "calculate_cagr", "calculate_target_buy_price",
+    }  # fmt: skip
     assert all(t.annotations and t.annotations.read_only_hint for t in tools)
-    names = " ".join(t.name for t in tools)
-    assert not any(w in names for w in ("buy", "sell", "withdraw", "transfer", "write"))
+    # Ninguna herramienta ESCRIBE u opera: ningún nombre empieza por un verbo de operación.
+    assert not any(t.name.split("_")[0] in {"buy", "sell", "withdraw", "transfer", "write", "create", "delete"} for t in tools)
     schema = next(t for t in tools if t.name == "get_transactions").input_schema
     assert set(schema["properties"]) == {"start", "end", "limit"}
 
@@ -147,3 +150,28 @@ def test_la_revocacion_surte_efecto_en_la_siguiente_llamada(env):
 
     first, second = run(env, env["ro"], go)
     assert not first.is_error and second.is_error and "revocada" in text(second)
+
+
+def test_calculadora_por_mcp_y_scope_separado(env):
+    async def go(s):
+        return await s.call_tool(
+            "calculate_cagr", {"mode": "historical", "params": {"initial": 10000, "final": 16105, "years": 5}}
+        )
+
+    ok = run(env, env["calc"], go)
+    assert not ok.is_error and json.loads(text(ok))["result"]["cagr"].startswith("0.09")
+    denied = run(env, env["all"], go)  # una clave de portafolio/movimientos no puede calcular
+    assert denied.is_error and "calculators:run" in text(denied)
+
+    async def bad(s):
+        return await s.call_tool("calculate_cagr", {"mode": "historical", "params": {"initial": 0, "final": 1, "years": 1}})
+
+    res = run(env, env["calc"], bad)
+    assert res.is_error and "mayores que cero" in text(res)
+
+    async def target(s):
+        return await s.call_tool(
+            "calculate_target_buy_price", {"params": {"future_value": "161.051", "years": 5, "target_return": "0.10"}}
+        )
+
+    assert json.loads(text(run(env, env["calc"], target)))["result"]["max_price_by_return"] == "100.000000"

@@ -22,6 +22,7 @@ MAX_PARAM_LEN = 100
 SCOPES = {
     "portfolio:read": "Resumen y posiciones de las cuentas autorizadas",
     "transactions:read": "Movimientos de las cuentas autorizadas (acotados por periodo)",
+    "calculators:run": "Calculadoras de CAGR y precio máximo (solo cálculo; no lee tu cartera)",
 }
 
 

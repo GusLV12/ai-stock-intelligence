@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 
+from modules.calculators.engine import CalcError
+from modules.calculators.service import calculate, target_buy_price
 from modules.portfolio.dashboard import build_dashboard
 from modules.portfolio.models import Transaction
 
@@ -90,3 +92,21 @@ def get_transactions(cred, start: str | None = None, end: str | None = None, lim
         ],
         "disclaimer": DISCLAIMER,
     }
+
+
+CALC_ERRORS = (CalcError, TypeError, ValueError, KeyError, AttributeError)
+
+
+def calculate_cagr(cred, mode: str, params: dict) -> dict:
+    """Calculadoras de rendimiento. Solo cálculo sobre los parámetros dados: no lee la cartera."""
+    try:
+        return calculate(mode, params)
+    except CALC_ERRORS as exc:
+        raise McpError(str(exc) if isinstance(exc, CalcError) else "Parámetros con formato inválido.") from None
+
+
+def calculate_target_buy_price(cred, params: dict) -> dict:
+    try:
+        return target_buy_price(params)
+    except CALC_ERRORS as exc:
+        raise McpError(str(exc) if isinstance(exc, CalcError) else "Parámetros con formato inválido.") from None

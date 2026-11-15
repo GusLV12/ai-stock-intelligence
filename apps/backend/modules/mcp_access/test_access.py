@@ -182,3 +182,19 @@ def test_end_sin_hora_incluye_todo_ese_dia(world):
     assert len(res["transactions"]) == 1
     assert run_tool(key, "get_transactions", "transactions:read", get_transactions,
                     {"start": "2026-01-02", "end": "2026-01-03"})["transactions"] == []  # fmt: skip
+
+
+def test_scope_de_calculadoras_no_lee_la_cartera_y_se_audita(world):
+    from .tools import calculate_cagr
+
+    user, a1, _ = world
+    _, key = create_credential(user, "calc", ["calculators:run"], [a1])
+    res = run_tool(key, "calculate_cagr", "calculators:run", calculate_cagr,
+                   {"mode": "real", "params": {"nominal": "0.10", "inflation": "0.04"}})  # fmt: skip
+    assert res["result"]["real_return"] == "0.057692"
+    with pytest.raises(McpError, match="mayores que cero"):
+        run_tool(key, "calculate_cagr", "calculators:run", calculate_cagr,
+                 {"mode": "historical", "params": {"initial": 0, "final": 1, "years": 1}})  # fmt: skip
+    assert [s for s in McpAuditLog.objects.order_by("id").values_list("status", flat=True)] == ["ok", "error"]
+    with pytest.raises(McpPermissionError):  # una clave de calculadora no puede leer la cartera
+        run_tool(key, "list_positions", "portfolio:read", list_positions)

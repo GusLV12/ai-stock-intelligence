@@ -71,5 +71,23 @@ async def get_transactions(start: str | None = None, end: str | None = None, lim
     return await _call("get_transactions", "transactions:read", tools.get_transactions, start=start, end=end, limit=limit)
 
 
+@mcp.tool(annotations=READ_ONLY)
+async def calculate_cagr(mode: str, params: dict) -> dict:
+    """Calculadoras de rendimiento. mode: historical (initial, final, years | start_date, end_date), projected
+    (buy_price, fundamental_initial, growth, years, exit_multiple, dilution?, dividends_per_share?, scenarios?),
+    real (nominal, inflation), fx (local_return, fx_start, fx_end), twr (subperiods) o dividends (shares,
+    start_price, end_price, dividends, withholding?). Las tasas son decimales (0.10 = 10%). Es un escenario
+    condicionado a tus supuestos, no una predicción. No lee tu cartera. Scope: calculators:run."""
+    return await _call("calculate_cagr", "calculators:run", tools.calculate_cagr, mode=mode, params=params)
+
+
+@mcp.tool(annotations=READ_ONLY)
+async def calculate_target_buy_price(params: dict) -> dict:
+    """Precio máximo de compra: future_value, years, target_return (decimal), dividends_per_share? y, para exigir
+    también margen de seguridad, estimated_value y margin_of_safety. Escenario, no predicción.
+    No lee tu cartera. Scope: calculators:run."""
+    return await _call("calculate_target_buy_price", "calculators:run", tools.calculate_target_buy_price, params=params)
+
+
 if __name__ == "__main__":
     mcp.run()

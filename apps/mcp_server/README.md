@@ -9,6 +9,8 @@ Expone tu portafolio a clientes MCP (p. ej. Claude Code) por `stdio`. **No puede
 | `portfolio_summary` | `portfolio:read` | Totales por moneda, MXN de referencia, XIRR si es evaluable, procedencia de precios |
 | `list_positions` | `portfolio:read` | Posiciones con precio, proveedor y antigüedad |
 | `get_transactions` | `transactions:read` | Movimientos en un periodo (máx. 366 días, 200 filas) |
+| `calculate_cagr` | `calculators:run` | CAGR histórico/proyectado, retorno real, FX, TWR y dividendos (solo cálculo; no lee tu cartera) |
+| `calculate_target_buy_price` | `calculators:run` | Precio máximo de compra por rentabilidad objetivo y margen de seguridad |
 
 Cada credencial tiene scopes y **cuentas** explícitos; el servidor solo ve esas cuentas.
 
