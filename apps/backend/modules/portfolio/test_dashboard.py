@@ -84,3 +84,22 @@ def test_dashboard_incluye_realizado_y_aisla_usuarios(ctx):
     otro.force_authenticate(get_user_model().objects.create_user("beto", password="x"))
     assert otro.get("/api/v1/portfolio/dashboard").json()["positions"] == []
     assert APIClient().get("/api/v1/portfolio/dashboard").status_code in (401, 403)
+
+
+def test_rendimiento_xirr_en_el_dashboard(ctx):
+    client, acc = ctx
+    aaa = make_stock("AAA")
+    record_buy(account=acc, instrument=aaa, quantity=D(10), price=D(100),
+               executed_at=datetime(2025, 1, 1, tzinfo=UTC))  # fmt: skip
+    record_price(aaa, D(110), "MANUAL", datetime(2026, 1, 1, tzinfo=UTC))  # +10% en 365 días
+    perf = client.get("/api/v1/portfolio/dashboard").json()["performance"]["USD"]
+    assert perf["reason"] is None and float(perf["xirr_pct"]) == pytest.approx(10.0, abs=0.01)
+
+
+def test_xirr_no_evaluable_con_saldo_de_apertura(ctx):
+    client, acc = ctx
+    aaa = make_stock("AAA")
+    record_buy(account=acc, instrument=aaa, quantity=D(1), price=D(100), executed_at=T0, origin="OPENING")
+    record_price(aaa, D(110), "MANUAL", REPORT)
+    perf = client.get("/api/v1/portfolio/dashboard").json()["performance"]["USD"]
+    assert perf["xirr_pct"] is None and "apertura" in perf["reason"]

@@ -9,11 +9,13 @@ from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from modules.accounts.models import InvestmentAccount
 from modules.imports.models import PositionSnapshot
 from modules.instruments.models import InstrumentIdentifier
 from modules.pricing.services import latest_fx, latest_price
 
 from .api import _positions_for
+from .performance import money_weighted_return
 
 ZERO = Decimal(0)
 CENT = Decimal("0.01")
@@ -99,6 +101,15 @@ def build_dashboard(user) -> dict:
             "note": "Tipo de cambio de referencia; no es el que aplica el broker.",
         }
 
+    account_ids = list(InvestmentAccount.objects.filter(owner=user).values_list("id", flat=True))
+    newest = max((p.observed_at for p in observed), default=None)
+    performance = {}
+    for cur in out_totals:
+        in_cur = [r for r in rows if r["currency"] == cur]
+        priced_all = all(r["market_value"] is not None for r in in_cur)
+        terminal = totals[cur]["market_value"] if priced_all else None
+        performance[cur] = money_weighted_return(account_ids, cur, terminal, newest or now, priced_all)
+
     total_mv = sum((r["market_value"] for r in rows if r["market_value"] is not None), ZERO)
     positions = []
     for row in sorted(rows, key=lambda x: x["market_value"] or ZERO, reverse=True):
@@ -132,6 +143,7 @@ def build_dashboard(user) -> dict:
     return {
         "prices": prices,
         "fx": fx_block,
+        "performance": performance,
         "totals_by_currency": out_totals,
         "positions": positions,
         "unpriced_positions": sum(1 for r in rows if r["market_value"] is None),
