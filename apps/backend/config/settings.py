@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "modules.valuations",
     "modules.calculators",
     "modules.fundamentals",
+    "modules.intelligence",
 ]
 
 MIDDLEWARE = [
