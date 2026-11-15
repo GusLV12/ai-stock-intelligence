@@ -16,6 +16,7 @@ from modules.accounts.models import InvestmentAccount
 from modules.imports.models import PositionSnapshot, SnapshotLine
 from modules.instruments.models import Instrument, InstrumentIdentifier
 from modules.portfolio.services import record_buy, record_sell
+from modules.pricing.services import record_price
 
 # ticker, títulos, costo promedio, precio reportado
 DEMO = [
@@ -60,6 +61,7 @@ class Command(BaseCommand):
                 account=acc, instrument=ins, quantity=D(1), price=avg + D(10),
                 executed_at=datetime(2026, 6, 1, 15, tzinfo=UTC),
             )  # fmt: skip
+            record_price(ins, price, "GBM_REPORT", snap.as_of)
             SnapshotLine.objects.create(
                 snapshot=snap, ticker=ticker, quantity=qty, average_cost=avg, market_price=price,
                 market_value=(qty * price).quantize(D("0.01")), raw=[],
