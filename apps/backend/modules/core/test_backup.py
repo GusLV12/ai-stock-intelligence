@@ -165,3 +165,96 @@ def test_generar_clave_no_escribe_archivos(tmp_path, monkeypatch):
     out = StringIO()
     call_command("generate_backup_key", stdout=out, stderr=StringIO())
     assert bk.load_key(out.getvalue().strip()) and not list(tmp_path.iterdir())
+
+
+# ------------------------------------------------------------------------------------------ PostgreSQL (con dobles)
+class FakeProc:
+    def __init__(self, out=b"", err=b"", code=0):
+        self.stdout, self.stderr, self.returncode = out, err, code
+
+
+def test_pg_run_no_pone_la_contrasena_en_los_argumentos_y_falla_con_mensaje_redactado(monkeypatch):
+    visto = {}
+
+    def falso(cmd, **kw):
+        visto.update(cmd=cmd, env=kw["env"])
+        return FakeProc(code=1, err=b"FATAL: password=hunter2 incorrecta")
+
+    monkeypatch.setattr(bk.shutil, "which", lambda t: f"/usr/bin/{t}")
+    monkeypatch.setattr(bk.subprocess, "run", falso)
+    with pytest.raises(bk.BackupError) as e:
+        bk._pg_run("pg_dump", ["-h", "db"], password="hunter2")
+    assert "hunter2" not in " ".join(visto["cmd"]) and visto["env"]["PGPASSWORD"] == "hunter2"
+    assert "hunter2" not in str(e.value) and "pg_dump falló" in str(e.value)
+    monkeypatch.setattr(bk.shutil, "which", lambda t: None)
+    with pytest.raises(bk.BackupError, match="No está instalado pg_dump"):
+        bk._pg_run("pg_dump", [])
+
+
+def respaldo_pg(tmp_path, monkeypatch, tablas=None):
+    tablas = tablas or {"portfolio_transaction": 5, "auth_user": 1}
+    monkeypatch.setattr(bk, "connection", SimpleNamespace(vendor="postgresql"))
+    monkeypatch.setattr(bk, "_pg_snapshot", lambda: (b"PGDMP-falso", tablas, ["app.0001_initial"]))
+    return bk.create_backup(tmp_path, KEY)
+
+
+def test_respaldo_de_postgres_guarda_el_motor_y_la_verificacion_es_superficial_y_se_declara(
+    tmp_path, monkeypatch
+):
+    out = respaldo_pg(tmp_path, monkeypatch)
+    manifest, dump = bk.open_backup(out, KEY)
+    assert (
+        manifest["engine"] == "postgresql" and dump == b"PGDMP-falso" and manifest["tables"]["auth_user"] == 1
+    )
+    toc = b"; Archive created\n1; 1259 16385 TABLE DATA public portfolio_transaction asi\n2; 1259 16390 TABLE DATA public auth_user asi\n"
+    monkeypatch.setattr(bk, "_pg_run", lambda tool, args, password="", stdin=None: toc)
+    res = bk.verify_backup(out, KEY)
+    assert res["ok"] is True and res["deep"] is False and res["rows"] == 6
+    monkeypatch.setattr(
+        bk, "_pg_run", lambda *a, **k: b"1; 1 1 TABLE DATA public auth_user asi\n"
+    )  # falta una tabla
+    res = bk.verify_backup(out, KEY)
+    assert res["ok"] is False and "portfolio_transaction" in res["problems"][0]
+
+
+def test_restaurar_postgres_crea_base_nueva_en_orden_y_nunca_toca_la_en_uso(tmp_path, monkeypatch):
+    out = respaldo_pg(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        bk,
+        "settings",
+        SimpleNamespace(
+            DATABASES={
+                "default": {"HOST": "db", "PORT": 5432, "USER": "asi", "NAME": "asi", "PASSWORD": "pw"}
+            }
+        ),
+    )
+    llamadas = []
+    monkeypatch.setattr(
+        bk,
+        "_pg_run",
+        lambda tool, args, password="", stdin=None: llamadas.append((tool, args, password)) or b"",
+    )
+    with pytest.raises(bk.BackupError, match="base en uso"):
+        bk.restore_postgres(out, "asi", KEY)
+    for mala in ("a; drop database asi", "x-y", "a b", ""):
+        with pytest.raises(bk.BackupError, match="inválido"):
+            bk.restore_postgres(out, mala, KEY)
+    assert llamadas == []  # nada se ejecutó con nombres peligrosos
+    assert bk.restore_postgres(out, "asi_restore_test", KEY) == "asi_restore_test"
+    assert (
+        [c[0] for c in llamadas] == ["createdb", "pg_restore"]
+        and llamadas[0][1][-1] == "asi_restore_test"
+        and "-d" in llamadas[1][1]
+    )
+    assert all(c[2] == "pw" for c in llamadas)
+
+
+def test_un_respaldo_de_postgres_no_se_restaura_como_sqlite_ni_al_reves(tmp_path, monkeypatch, datos):
+    pg = respaldo_pg(tmp_path, monkeypatch)
+    with pytest.raises(bk.BackupError, match="restore_db --pg-database"):
+        bk.restore_backup(pg, tmp_path / "x.sqlite3", KEY)
+    monkeypatch.undo()
+    lite = bk.create_backup(tmp_path / "lite", KEY)
+    monkeypatch.setattr(bk, "settings", SimpleNamespace(DATABASES={"default": {"NAME": "otra"}}))
+    with pytest.raises(bk.BackupError, match="no es de PostgreSQL"):
+        bk.restore_postgres(lite, "asi_prueba", KEY)

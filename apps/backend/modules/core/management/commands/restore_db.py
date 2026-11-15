@@ -3,7 +3,7 @@ verifica el archivo restaurado y cópialo tú."""
 
 from django.core.management.base import BaseCommand, CommandError
 
-from modules.core.backup import BackupError, restore_backup
+from modules.core.backup import BackupError, restore_backup, restore_postgres
 
 
 class Command(BaseCommand):
@@ -11,13 +11,22 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("file")
-        parser.add_argument("--target", required=True)
+        parser.add_argument("--target", help="Archivo SQLite nuevo (respaldos de SQLite).")
+        parser.add_argument(
+            "--pg-database", help="Nombre de una base PostgreSQL NUEVA (respaldos de PostgreSQL)."
+        )
         parser.add_argument(
             "--force", action="store_true", help="Reemplazar el destino si ya existe (nunca la base en uso)."
         )
 
     def handle(self, *args, **o):
         try:
+            if o["pg_database"]:
+                db = restore_postgres(o["file"], o["pg_database"])
+                self.stdout.write(f"Restaurado en la base {db}. Compara y revisa antes de usarla.")
+                return
+            if not o["target"]:
+                raise CommandError("Indica --target (SQLite) o --pg-database (PostgreSQL).")
             out = restore_backup(o["file"], o["target"], force=o["force"])
         except BackupError as exc:
             raise CommandError(str(exc)) from exc

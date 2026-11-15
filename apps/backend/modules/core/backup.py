@@ -16,7 +16,9 @@ import gzip
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
+import subprocess
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -114,15 +116,16 @@ def _migrations(counts_source_bytes: bytes) -> list[str]:
 # ---------------------------------------------------------------------------------------------- crear / abrir
 def create_backup(dest_dir: str | Path, key: str | None = None, now: datetime | None = None) -> Path:
     f = load_key(key)
-    dump, counts = _sqlite_snapshot()
+    engine = "postgresql" if connection.vendor == "postgresql" else "sqlite"
+    dump, counts, migrations = _pg_snapshot() if engine == "postgresql" else (*_sqlite_snapshot(), None)
     if len(dump) > MAX_BYTES:
         raise BackupError(
             "La base es demasiado grande para este método; usa pg_dump con almacenamiento externo."
         )
     now = now or datetime.now(UTC)
     manifest = {
-        "version": 1, "created_at": now.isoformat(), "engine": "sqlite", "bytes": len(dump), "sha256": hashlib.sha256(dump).hexdigest(),
-        "tables": counts, "migrations": _migrations(dump),
+        "version": 1, "created_at": now.isoformat(), "engine": engine, "bytes": len(dump), "sha256": hashlib.sha256(dump).hexdigest(),
+        "tables": counts, "migrations": migrations if migrations is not None else _migrations(dump),
     }  # fmt: skip
     payload = json.dumps(manifest).encode() + b"\n" + gzip.compress(dump, 6)
     dest = Path(dest_dir)
@@ -158,6 +161,8 @@ def open_backup(path: str | Path, key: str | None = None) -> tuple[dict, bytes]:
 def verify_backup(path: str | Path, key: str | None = None) -> dict:
     """Prueba de restauración: abre el respaldo, lo restaura en un archivo temporal y comprueba integridad y filas por tabla."""
     manifest, dump = open_backup(path, key)
+    if manifest.get("engine") == "postgresql":
+        return _verify_postgres(manifest, dump)
     fd, tmp = tempfile.mkstemp(suffix=".sqlite3")
     os.close(fd)
     try:
@@ -183,7 +188,7 @@ def verify_backup(path: str | Path, key: str | None = None) -> dict:
         problems.append(f"filas distintas al manifiesto en: {', '.join(diff)}")
     return {
         "ok": not problems, "problems": problems, "created_at": manifest["created_at"], "tables": len(counts),
-        "rows": sum(counts.values()), "migrations": len(manifest["migrations"]),
+        "rows": sum(counts.values()), "migrations": len(manifest["migrations"]), "deep": True,
     }  # fmt: skip
 
 
@@ -198,6 +203,8 @@ def restore_backup(path: str | Path, target: str | Path, key: str | None = None,
     if target.exists() and not force:
         raise BackupError(f"{target} ya existe (usa --force para reemplazarlo).")
     manifest, dump = open_backup(path, key)
+    if manifest.get("engine") != "sqlite":
+        raise BackupError("Este respaldo es de PostgreSQL: usa `restore_db --pg-database <base_nueva>`.")
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(target.suffix + ".part")
     tmp.write_bytes(dump)
@@ -217,3 +224,121 @@ def prune(dest_dir: str | Path, keep: int) -> list[Path]:
     for p in old:
         p.unlink()
     return old
+
+
+# --------------------------------------------------------------------------------------------------- PostgreSQL
+def _pg_conn() -> dict:
+    cfg = settings.DATABASES["default"]
+    return {
+        "host": cfg.get("HOST") or "localhost",
+        "port": str(cfg.get("PORT") or "5432"),
+        "user": cfg.get("USER") or "",
+        "name": cfg.get("NAME") or "",
+        "password": cfg.get("PASSWORD") or "",
+    }
+
+
+def _pg_run(tool: str, args: list[str], password: str = "", stdin: bytes | None = None) -> bytes:
+    """Ejecuta una herramienta de PostgreSQL sin shell. La contraseña va por PGPASSWORD, nunca en los argumentos."""
+    exe = shutil.which(tool)
+    if exe is None:
+        raise BackupError(f"No está instalado {tool} (paquete postgresql-client).")
+    env = {**os.environ, "PGPASSWORD": password}
+    try:
+        proc = subprocess.run(
+            [exe, *args], input=stdin, capture_output=True, env=env, timeout=3600, check=False
+        )  # nosec B603
+    except subprocess.TimeoutExpired:
+        raise BackupError(f"{tool} excedió el tiempo límite.") from None
+    if proc.returncode != 0:
+        from .observability import redact
+
+        raise BackupError(f"{tool} falló: {redact(proc.stderr.decode(errors='replace'))[-300:]}")
+    return proc.stdout
+
+
+def _pg_tables_and_counts() -> dict:
+    with connection.cursor() as cur:
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name"
+        )
+        names = [r[0] for r in cur.fetchall()]
+        out = {}
+        for t in names:
+            cur.execute(f"SELECT COUNT(*) FROM {connection.ops.quote_name(t)}")
+            out[t] = cur.fetchone()[0]
+    return out
+
+
+def _pg_snapshot() -> tuple[bytes, dict, list[str]]:
+    """pg_dump en formato personalizado (instantánea consistente: una sola transacción)."""
+    c = _pg_conn()
+    args = [
+        "--format=custom",
+        "--no-owner",
+        "--no-privileges",
+        "-h",
+        c["host"],
+        "-p",
+        c["port"],
+        "-U",
+        c["user"],
+        "-d",
+        c["name"],
+    ]
+    dump = _pg_run("pg_dump", args, c["password"])
+    counts = _pg_tables_and_counts()
+    with connection.cursor() as cur:
+        cur.execute("SELECT app, name FROM django_migrations ORDER BY id")
+        migrations = [f"{a}.{n}" for a, n in cur.fetchall()]
+    return dump, counts, migrations
+
+
+def _verify_postgres(manifest: dict, dump: bytes) -> dict:
+    """Verificación SUPERFICIAL: pg_restore --list lee el índice del archivo y debe contener los datos de cada tabla del
+    manifiesto. La prueba profunda (restaurar a una base de prueba) es `restore_db --pg-database`; hazla al desplegar."""
+    fd, tmp = tempfile.mkstemp(suffix=".dump")
+    os.close(fd)
+    try:
+        Path(tmp).write_bytes(dump)
+        listing = _pg_run("pg_restore", ["--list", tmp]).decode(errors="replace")
+    finally:
+        Path(tmp).unlink(missing_ok=True)
+    present = set()
+    for line in listing.splitlines():
+        parts = line.split()
+        if "DATA" in parts and parts[parts.index("DATA") - 1] == "TABLE":
+            idx = parts.index("DATA")
+            if len(parts) > idx + 2:  # ... TABLE DATA <esquema> <tabla> <dueño>
+                present.add(parts[idx + 2])
+    missing = sorted(set(manifest["tables"]) - present)
+    problems = [f"faltan datos de tablas en el archivo: {', '.join(missing)}"] if missing else []
+    return {
+        "ok": not problems, "problems": problems, "created_at": manifest["created_at"], "tables": len(manifest["tables"]),
+        "rows": sum(manifest["tables"].values()), "migrations": len(manifest["migrations"]), "deep": False,
+    }  # fmt: skip
+
+
+def restore_postgres(path: str | Path, database: str, key: str | None = None) -> str:
+    """Restaura en una base NUEVA (la crea; falla si ya existe). Nunca toca la base en uso."""
+    c = _pg_conn()
+    if database == c["name"]:
+        raise BackupError(
+            "El destino es la base en uso. Restaura a una base nueva y cámbiala tú con la app detenida."
+        )
+    if not database.replace("_", "").isalnum():
+        raise BackupError("Nombre de base inválido (solo letras, números y guion bajo).")
+    manifest, dump = open_backup(path, key)
+    if manifest.get("engine") != "postgresql":
+        raise BackupError("Este respaldo no es de PostgreSQL.")
+    base = ["-h", c["host"], "-p", c["port"], "-U", c["user"]]
+    _pg_run("createdb", [*base, database], c["password"])
+    fd, tmp = tempfile.mkstemp(suffix=".dump")
+    os.close(fd)
+    try:
+        Path(tmp).write_bytes(dump)
+        _pg_run("pg_restore", [*base, "--no-owner", "--exit-on-error", "-d", database, tmp], c["password"])
+    finally:
+        Path(tmp).unlink(missing_ok=True)
+    return database

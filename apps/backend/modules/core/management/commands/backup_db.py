@@ -30,3 +30,7 @@ class Command(BaseCommand):
         self.stdout.write(
             f"Respaldo verificado: {path} ({res['tables']} tablas, {res['rows']} filas). Eliminados por retención: {len(removed)}."
         )
+        if not res.get("deep", True):
+            self.stdout.write(
+                "Aviso: verificación superficial (PostgreSQL). Haz la prueba completa con restore_db --pg-database."
+            )
