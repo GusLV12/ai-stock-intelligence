@@ -34,7 +34,7 @@ export default defineConfig({
     { name: "setup", testMatch: /setup\.mjs/ },
     {
       name: "app",
-      testMatch: /(portfolio|quant|paper|liquidity)\.spec\.mjs/,
+      testMatch: /(portfolio|quant|paper|liquidity|screener)\.spec\.mjs/,
       dependencies: ["setup"],
       use: { storageState: STATE },
     },
@@ -44,7 +44,8 @@ export default defineConfig({
   workers: 1, // comparten una sola base
   fullyParallel: false,
   reporter: [["list"]],
-  use: { baseURL: `http://localhost:${FRONT}`, trace: "retain-on-failure", screenshot: "only-on-failure" },
+  // E2E_SLOWMO=400 npx playwright test --headed  -> el navegador se ve y va despacio
+  use: { launchOptions: { slowMo: Number(process.env.E2E_SLOWMO || 0) }, baseURL: `http://localhost:${FRONT}`, trace: "retain-on-failure", screenshot: "only-on-failure" },
   webServer: [
     {
       command: `"${py}" prepare_e2e.py "${db}"`,
