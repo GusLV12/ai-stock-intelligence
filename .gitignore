@@ -16,8 +16,8 @@ node_modules/
 .next/
 
 # Datos financieros reales (nunca al repositorio)
-imports/
-evidence/
+/imports/
+/evidence/
 *.pdf
 *.xlsx
 infra/backups/*
