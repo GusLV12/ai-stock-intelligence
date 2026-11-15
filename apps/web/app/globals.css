@@ -145,3 +145,5 @@ select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border
 
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
 textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); width: 100%; resize: vertical; }
+
+.chartbox { width: 100%; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
