@@ -45,3 +45,5 @@ class FxRate(models.Model):
             ),
             models.CheckConstraint(condition=Q(rate__gt=0), name="fx_positive"),
         ]
+
+from .history_models import DailyClose  # noqa: F401  (registra el modelo en la app)

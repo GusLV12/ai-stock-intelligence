@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
@@ -217,3 +217,66 @@ class YahooProvider:
         if currency != "MXN":
             raise ProviderError("Yahoo devolvió un par distinto de USD/MXN.")
         return price, observed
+
+    # ---------- historial de cierres diarios ----------
+
+    HISTORY_RANGES = {"1mo", "3mo", "6mo", "1y", "2y", "5y"}
+
+    def fetch_history(self, symbol: str, range_: str = "1y") -> dict:
+        """Cierres diarios: {'currency', 'bars': [(date, Decimal), ...]} en orden cronológico.
+        Se descartan cierres nulos o no positivos, fechas repetidas y la barra de HOY (puede estar a medias)."""
+        if range_ not in self.HISTORY_RANGES:
+            raise ProviderError(f"Rango de historial no soportado: {range_}.")
+        symbol = symbol.replace(".", "-")
+        self._throttle()
+        quoted = urllib.parse.quote(symbol, safe="")
+        last = None
+        for host in self.HOSTS:
+            url = f"https://{host}/v8/finance/chart/{quoted}?range={range_}&interval=1d"
+            try:
+                data = self._http(url, headers={"User-Agent": self.USER_AGENT, "Accept": "*/*"})
+            except ProviderError as exc:
+                if not exc.transient:
+                    raise ProviderError(f"Yahoo no tiene historial de {symbol}.") from None
+                last = exc
+                continue
+            chart = data.get("chart")
+            if not isinstance(chart, dict) or chart.get("error"):
+                if isinstance(chart, dict) and chart.get("error"):
+                    raise ProviderError(f"Yahoo no tiene historial de {symbol}.")
+                last = ProviderError("Respuesta de Yahoo con formato inesperado.", transient=True)
+                continue
+            try:
+                res = chart["result"][0]
+                stamps = res["timestamp"]
+                closes = res["indicators"]["quote"][0]["close"]
+                meta = res["meta"]
+            except (KeyError, IndexError, TypeError):
+                last = ProviderError("Respuesta de Yahoo con formato inesperado.", transient=True)
+                continue
+            return self._parse_bars(symbol, stamps, closes, meta)
+        raise last or ProviderError("Yahoo no disponible.", transient=True)
+
+    def _parse_bars(self, symbol, stamps, closes, meta) -> dict:
+        currency = str(meta.get("currency") or "").upper()
+        if len(currency) != 3:
+            raise ProviderError(f"Falta la moneda de {symbol} en Yahoo.")
+        offset = int(meta.get("gmtoffset") or 0)
+        today_local = (self._now() + timedelta(seconds=offset)).date()
+        if not isinstance(stamps, list) or not isinstance(closes, list):
+            raise ProviderError("Respuesta de Yahoo con formato inesperado.", transient=True)
+        by_date = {}
+        for ts, close in zip(stamps, closes, strict=False):
+            if close is None:
+                continue
+            try:
+                day = (datetime.fromtimestamp(int(ts), UTC) + timedelta(seconds=offset)).date()
+                value = _decimal(close, "Cierre").quantize(Decimal("0.0001"))  # quita el ruido de float del proveedor
+            except (TypeError, ValueError, OverflowError, OSError, ProviderError):
+                continue
+            if value <= 0 or day >= today_local:  # sin cierres inválidos ni la barra de hoy
+                continue
+            by_date[day] = value  # una barra por día; la posterior gana
+        if not by_date:
+            raise ProviderError(f"Yahoo no devolvió cierres válidos para {symbol}.")
+        return {"currency": currency, "bars": sorted(by_date.items())}
