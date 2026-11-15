@@ -171,3 +171,14 @@ def test_comandos_de_gestion(world):
         authenticate(key)
     with pytest.raises(CommandError):
         call_command("create_mcp_key", user="ana", name="x", scopes="trade:write", accounts="GBM")
+
+
+def test_end_sin_hora_incluye_todo_ese_dia(world):
+    user, a1, _ = world
+    _, key = create_credential(user, "c", ["transactions:read"], [a1])
+    # La compra es del 1 ene 2026 00:00 UTC = 31 dic 2025 18:00 en México.
+    res = run_tool(key, "get_transactions", "transactions:read", get_transactions,
+                   {"start": "2025-12-31", "end": "2025-12-31"})  # fmt: skip
+    assert len(res["transactions"]) == 1
+    assert run_tool(key, "get_transactions", "transactions:read", get_transactions,
+                    {"start": "2026-01-02", "end": "2026-01-03"})["transactions"] == []  # fmt: skip

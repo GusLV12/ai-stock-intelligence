@@ -36,20 +36,27 @@ def list_positions(cred) -> dict:
     return {"positions": d["positions"], "prices": d["prices"], "disclaimer": DISCLAIMER}
 
 
-def _parse_day(raw: str | None, name: str) -> datetime | None:
+def _parse_day(raw: str | None, name: str, end_of_day: bool = False) -> datetime | None:
+    """Fecha ISO 8601. Sin hora se interpreta en hora de México; un `end` sin hora incluye todo ese día."""
     if raw is None:
         return None
     try:
-        return datetime.fromisoformat(raw).replace(tzinfo=timezone.get_current_timezone()) if "T" not in raw else datetime.fromisoformat(raw)
+        parsed = datetime.fromisoformat(raw)
     except ValueError:
         raise McpError(f"{name}: fecha ISO 8601 inválida.") from None
+    if "T" in raw or " " in raw.strip():
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.get_current_timezone())
+        return parsed
+    day = parsed.replace(tzinfo=timezone.get_current_timezone())
+    return day + timedelta(days=1) - timedelta(microseconds=1) if end_of_day else day
 
 
 def get_transactions(cred, start: str | None = None, end: str | None = None, limit: int = 50) -> dict:
     if not 1 <= int(limit) <= MAX_TX:
         raise McpError(f"limit debe estar entre 1 y {MAX_TX}.")
     now = timezone.now()
-    end_dt = _parse_day(end, "end") or now
+    end_dt = _parse_day(end, "end", end_of_day=True) or now
     start_dt = _parse_day(start, "start") or (end_dt - timedelta(days=90))
     if start_dt > end_dt:
         raise McpError("start no puede ser posterior a end.")
