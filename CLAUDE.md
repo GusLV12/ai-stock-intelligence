@@ -69,7 +69,7 @@ Comandos de gestión útiles: `refresh_market_data`, `refresh_price_history --ra
 Etapas 0–12 con trabajo entregado. Pendiente:
 - Etapa 0 hecha: e2e con Playwright en `tests/e2e` (`npm test`, base temporal ficticia, login 1 vez por el límite 5/min) y `docs/runbooks/segunda-pc.md`. Faltan fixtures de datos para pruebas financieras.
 - Lectores PDF de GBM/Mercado Pago (requieren documentos reales).
-- Ingesta SEC EDGAR (requiere contacto para User-Agent; no usar el email del usuario sin su aprobación).
+- SEC EDGAR: `ingest_sec_financials` construido y probado con respuestas simuladas; falta la prueba en vivo (el usuario debe definir `SEC_CONTACT` en su `.env`; no usar su email sin aprobación). Solo 10-K US-GAAP; 20-F y ETF no soportados.
 - Pruebas en vivo con Twelve Data/Banxico (claves del usuario).
 - Contenedores y respaldo/restauración en PostgreSQL 17 verificados con Docker real (ver runbook despliegue-remoto); faltan perfiles `mcp`/`inference`, dominio real (Let's Encrypt) e IdP real.
 - RD-Agent(Q) no adoptado (qwen3:1.7b NO_APTO; reintentar con 4b/8b en la ROG de 24 GB).
