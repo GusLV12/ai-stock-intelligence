@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createChart, LineSeries } from "lightweight-charts";
 import { api, ApiError } from "../lib/api";
+import { chartPalette } from "../lib/chartTheme";
 
 const pct = (v, d = 1) => (v == null ? "—" : `${(Number(v) * 100).toFixed(d)} %`);
 const num = (v) => (typeof v !== "number" ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(3));
@@ -15,12 +16,7 @@ const VERDICTS = {
   DATOS_INSUFICIENTES: ["Datos insuficientes", "La muestra es demasiado chica para concluir algo."],
 };
 
-function palette() {
-  const dark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  return dark
-    ? { bg: "#161f28", text: "#e6ebf0", grid: "#2a3541", a: "#6db0f0", b: "#f0d58a", c: "#cdb6f0" }
-    : { bg: "#ffffff", text: "#15202b", grid: "#d9dee5", a: "#0f5fa8", b: "#6b4e00", c: "#51317f" };
-}
+const palette = chartPalette;
 
 function useGuard() {
   const router = useRouter();

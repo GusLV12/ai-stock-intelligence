@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createChart, LineSeries } from "lightweight-charts";
 import { api, ApiError } from "../lib/api";
+import { chartPalette } from "../lib/chartTheme";
 
 const money = (v) => (v == null ? "—" : Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const pct = (v, d = 2) => (v == null ? "—" : `${(Number(v) * 100).toFixed(d)} %`);
@@ -26,10 +27,7 @@ function useGuard() {
   );
 }
 
-function palette() {
-  const dark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  return dark ? { bg: "#161f28", text: "#e6ebf0", grid: "#2a3541", a: "#6db0f0" } : { bg: "#ffffff", text: "#15202b", grid: "#d9dee5", a: "#0f5fa8" };
-}
+const palette = chartPalette;
 
 function EquityChart({ curve }) {
   const ref = useRef(null);

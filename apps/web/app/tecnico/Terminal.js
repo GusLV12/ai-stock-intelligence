@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CandlestickSeries, createChart, HistogramSeries, LineSeries } from "lightweight-charts";
 import { api, ApiError } from "../lib/api";
+import { chartPalette } from "../lib/chartTheme";
 
 const TABS = [["daily", "Diario"], ["intraday", "Intradía"], ["plan", "Plan de operación"], ["alerts", "Alertas"], ["liquidity", "Liquidez"]];
 const num = (v) => (String(v ?? "").trim() === "" ? undefined : String(v).trim().replace(",", "."));
@@ -25,12 +26,7 @@ function useGuard() {
   );
 }
 
-function palette() {
-  const dark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  return dark
-    ? { bg: "#161f28", text: "#e6ebf0", grid: "#2a3541", up: "#8fd6a5", down: "#f2a79d", a: "#6db0f0", b: "#f0d58a", c: "#cdb6f0" }
-    : { bg: "#ffffff", text: "#15202b", grid: "#d9dee5", up: "#1d6a35", down: "#9a2a1c", a: "#0f5fa8", b: "#6b4e00", c: "#51317f" };
-}
+const palette = chartPalette;
 
 /** Gráfica de precio con paneles opcionales (RSI y MACD). Se recrea cuando cambian los datos. */
 function PriceChart({ data, overlays, panes, height = 420 }) {
@@ -112,7 +108,7 @@ function Daily({ ticker, symbols }) {
   const d = state.data;
   if (!d.evaluable) return <div className="card empty"><h2>Sin historial de {ticker}</h2><p>{d.note}</p></div>;
   const f = d.freshness;
-  const chartData = { ...d, levelLines: (d.context.levels ?? []).slice(0, 4).map((lv) => ({ price: lv.price, color: lv.kind === "support" ? "#1d6a35" : "#9a2a1c" })) };
+  const chartData = { ...d, levelLines: (d.context.levels ?? []).slice(0, 4).map((lv) => ({ price: lv.price, color: lv.kind === "support" ? palette().up : palette().down })) };
   return (
     <div className="stack">
       <p className={`notice ${f.stale ? "warn" : ""}`} role="status">
@@ -174,7 +170,7 @@ function Intraday({ ticker }) {
         candles: d.bars.map((b) => ({ time: Math.floor(new Date(b.time).getTime() / 1000), open: b.open, high: b.high, low: b.low, close: b.close })),
         vwap: d.vwap.map((p) => ({ time: Math.floor(new Date(p.time).getTime() / 1000), value: Number(p.value) })),
         intraday: true,
-        levelLines: d.orb?.range_high ? [{ price: d.orb.range_high, color: "#1d6a35" }, { price: d.orb.range_low, color: "#9a2a1c" }] : [],
+        levelLines: d.orb?.range_high ? [{ price: d.orb.range_high, color: palette().up }, { price: d.orb.range_low, color: palette().down }] : [],
       }
     : null;
   return (
