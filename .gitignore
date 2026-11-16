@@ -3,8 +3,10 @@
 .env.*
 !.env.example
 
-# Python
-.venv/
+# Python (cualquier entorno virtual: .venv, .venv311, venv…)
+.venv*/
+venv*/
+env/
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -39,3 +41,30 @@ tests/e2e/node_modules/
 tests/e2e/test-results/
 tests/e2e/playwright-report/
 tests/e2e/.auth-state.json
+
+# Regla del repo ligero (ver .claude/skills/repo-limpio): resultados de pruebas, capturas, binarios y registros no se suben.
+**/test-results/
+**/playwright-report/
+**/blob-report/
+*.trace.zip
+coverage/
+htmlcov/
+.coverage
+*.log
+*.sqlite3
+*.sqlite
+*.db
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.mp4
+*.mov
+*.zip
+*.gz
+*.7z
+# Excepciones deliberadas (iconos mínimos de la aplicación)
+!apps/web/public/**
+.claude/settings.local.json
