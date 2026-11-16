@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, ApiError, fmtMoney, fmtSigned, signClass } from "./lib/api";
@@ -14,6 +13,42 @@ function Stat({ label, value, sub, tone }) {
       <strong className={tone}>{value}</strong>
       {sub && <span className={`sub ${tone ?? ""}`}>{sub}</span>}
     </div>
+  );
+}
+
+const ALLOC_COLORS = ["#4f7cff", "#a78bfa", "#f472b6", "#fbbf24", "#34d399"];
+const ALLOC_REST = "#7b8798";
+
+/** Peso de cada emisora (el mismo `weight_pct` de la tabla) en una barra apilada; el resto se agrupa. */
+function Allocation({ positions }) {
+  const rows = positions
+    .filter((p) => p.weight_pct != null && Number(p.weight_pct) > 0)
+    .map((p) => ({ ticker: p.ticker, pct: Number(p.weight_pct) }))
+    .sort((a, b) => b.pct - a.pct);
+  if (rows.length < 2) return null;
+  const top = rows.slice(0, ALLOC_COLORS.length);
+  const rest = rows.slice(ALLOC_COLORS.length).reduce((s, r) => s + r.pct, 0);
+  const parts = top.map((r, i) => ({ ...r, color: ALLOC_COLORS[i] }));
+  if (rest > 0) parts.push({ ticker: "Otras", pct: rest, color: ALLOC_REST });
+  const summary = parts.map((r) => `${r.ticker} ${r.pct.toFixed(1)}%`).join(", ");
+  return (
+    <section className="card alloc" aria-label="Distribución por emisora">
+      <h2>Dónde está tu dinero</h2>
+      <div className="alloc-bar" role="img" aria-label={`Distribución: ${summary}`}>
+        {parts.map((r) => (
+          <span key={r.ticker} style={{ flexGrow: r.pct, background: r.color }} />
+        ))}
+      </div>
+      <ul className="alloc-legend" aria-hidden="true">
+        {parts.map((r) => (
+          <li key={r.ticker}>
+            <i style={{ background: r.color }} />
+            <b>{r.ticker}</b>
+            <span>{r.pct.toFixed(1)}%</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -72,18 +107,9 @@ export default function Dashboard() {
           <h1>Mi portafolio</h1>
           <p className="muted">Sesión de {user?.username}</p>
         </div>
-        <nav className="actions" aria-label="Principal">
-          <Link className="btn ghost" href="/tecnico">Técnico</Link>
-          <Link className="btn ghost" href="/quant">Quant Lab</Link>
-          <Link className="btn ghost" href="/paper">Paper trading</Link>
-          <Link className="btn ghost" href="/inteligencia">Inteligencia</Link>
-          <Link className="btn ghost" href="/screener">Screener</Link>
-          <Link className="btn ghost" href="/fair-value">Fair Value</Link>
-          <Link className="btn ghost" href="/calculadoras">Calculadoras</Link>
-          <Link className="btn ghost" href="/asistente">Asistente</Link>
-          <Link className="btn ghost" href="/ventas">Ventas por ejercicio</Link>
+        <div className="actions">
           <button className="ghost" onClick={logout}>Cerrar sesión</button>
-        </nav>
+        </div>
       </header>
 
       {data.prices.newest_at && (
@@ -131,6 +157,8 @@ export default function Dashboard() {
               />
             )}
           </section>
+
+          <Allocation positions={data.positions} />
 
           <div className="tablewrap">
             <table>
