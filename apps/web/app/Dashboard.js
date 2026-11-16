@@ -6,18 +6,30 @@ import { api, ApiError, fmtMoney, fmtSigned, signClass } from "./lib/api";
 
 const STALE_HOURS = 48;
 
+/** La flecha de `fmtSigned` va en un span aparte para que no se dibuje más grande que las cifras. */
+function Value({ children }) {
+  const m = typeof children === "string" ? children.match(/^([▲▼•])\s(.*)$/) : null;
+  if (!m) return children;
+  return (
+    <>
+      <span className="arrow" aria-hidden="true">{m[1]}</span>
+      {m[2]}
+    </>
+  );
+}
+
 function Stat({ label, value, sub, tone }) {
   return (
     <div className="card stat">
       <span className="label">{label}</span>
-      <strong className={tone}>{value}</strong>
+      <strong className={tone}><Value>{value}</Value></strong>
       {sub && <span className={`sub ${tone ?? ""}`}>{sub}</span>}
     </div>
   );
 }
 
-const ALLOC_COLORS = ["#4f7cff", "#a78bfa", "#f472b6", "#fbbf24", "#34d399"];
-const ALLOC_REST = "#7b8798";
+const ALLOC_COLORS = ["#7c6cff", "#2dd4bf", "#f472b6", "#fbbf24", "#60a5fa"];
+const ALLOC_REST = "#7b8498";
 
 /** Peso de cada emisora (el mismo `weight_pct` de la tabla) en una barra apilada; el resto se agrupa. */
 function Allocation({ positions }) {
