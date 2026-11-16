@@ -3,25 +3,25 @@
  * si cambias allí --card, --fg, --line, --pos, --neg o --accent-fg, actualízalos aquí.
  */
 const DARK = {
-  bg: "#12161d",
-  text: "#e8ecf2",
-  grid: "#232b37",
-  up: "#4ade9a",
-  down: "#ff7b72",
-  a: "#86a9ff",
-  b: "#f0d58a",
-  c: "#cdb6f0",
+  bg: "#11131a",
+  text: "#eceef4",
+  grid: "#1f2330",
+  up: "#35d6a1",
+  down: "#ff6b7d",
+  a: "#a79cff",
+  b: "#f0c36a",
+  c: "#5fd0e8",
 };
 
 const LIGHT = {
   bg: "#ffffff",
-  text: "#121826",
-  grid: "#dde2ea",
-  up: "#12803f",
-  down: "#c4332b",
-  a: "#2455d6",
-  b: "#6b4e00",
-  c: "#51317f",
+  text: "#14151f",
+  grid: "#e0e2ec",
+  up: "#0f8a5f",
+  down: "#cf2f48",
+  a: "#4c3dd0",
+  b: "#8a5a00",
+  c: "#0a7ea4",
 };
 
 export function chartPalette() {

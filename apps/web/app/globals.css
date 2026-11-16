@@ -1,27 +1,27 @@
 /* ------------------------------------------------------------------ Tokens */
 :root {
   /* Superficies */
-  --bg: #f4f6fa;
+  --bg: #f5f5fa;
   --card: #ffffff;
-  --surface-2: #eceff5;
-  --line: #dde2ea;
-  --line-strong: #c5ccd8;
+  --surface-2: #eeeff6;
+  --line: #e0e2ec;
+  --line-strong: #c9ccdb;
   /* Texto */
-  --fg: #121826;
-  --muted: #556072;
-  /* Acento (el relleno lleva texto blanco; --accent-fg es el acento como texto) */
-  --accent: #2f62e8;
-  --accent-fg: #2455d6;
-  --accent-soft: rgba(47, 98, 232, 0.1);
+  --fg: #14151f;
+  --muted: #5a5f72;
+  /* Acento índigo (el relleno lleva texto blanco; --accent-fg es el acento como texto) */
+  --accent: #5b4be0;
+  --accent-fg: #4c3dd0;
+  --accent-soft: rgba(91, 75, 224, 0.09);
   --on-accent: #ffffff;
   /* Semántica */
-  --pos: #12803f;
-  --pos-soft: rgba(18, 128, 63, 0.1);
-  --neg: #c4332b;
-  --neg-soft: rgba(196, 51, 43, 0.1);
-  --warn-bg: #fff4d6;
-  --warn-fg: #6b4e00;
-  --err: #c4332b;
+  --pos: #0f8a5f;
+  --pos-soft: rgba(15, 138, 95, 0.1);
+  --neg: #cf2f48;
+  --neg-soft: rgba(207, 47, 72, 0.1);
+  --warn-bg: #fff3d4;
+  --warn-fg: #6b4a00;
+  --err: #cf2f48;
   /* Escala tipográfica */
   --fs-xs: 0.75rem;
   --fs-sm: 0.8125rem;
@@ -40,24 +40,24 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b0e13;
-    --card: #12161d;
-    --surface-2: #181d26;
-    --line: #232b37;
-    --line-strong: #323c4b;
-    --fg: #e8ecf2;
-    --muted: #8d99ab;
-    --accent: #3566ea;
-    --accent-fg: #86a9ff;
-    --accent-soft: rgba(94, 138, 255, 0.14);
+    --bg: #0a0b10;
+    --card: #11131a;
+    --surface-2: #171a23;
+    --line: #1f2330;
+    --line-strong: #2c3140;
+    --fg: #eceef4;
+    --muted: #8c93a6;
+    --accent: #6d5ef0;
+    --accent-fg: #a79cff;
+    --accent-soft: rgba(124, 108, 255, 0.14);
     --on-accent: #ffffff;
-    --pos: #4ade9a;
-    --pos-soft: rgba(74, 222, 154, 0.12);
-    --neg: #ff7b72;
-    --neg-soft: rgba(255, 123, 114, 0.12);
-    --warn-bg: #2e2510;
-    --warn-fg: #f0d58a;
-    --err: #ff7b72;
+    --pos: #35d6a1;
+    --pos-soft: rgba(53, 214, 161, 0.12);
+    --neg: #ff6b7d;
+    --neg-soft: rgba(255, 107, 125, 0.12);
+    --warn-bg: #2a2314;
+    --warn-fg: #f0c36a;
+    --err: #ff6b7d;
   }
 }
 
@@ -257,6 +257,7 @@ label.btn { cursor: pointer; }
 .stat { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; }
 .stat .label { color: var(--muted); font-size: var(--fs-xs); font-weight: 550; letter-spacing: 0.02em; }
 .stat strong { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.stat .arrow { font-family: var(--font-sans); font-size: 0.55em; margin-right: 0.45em; vertical-align: 0.15em; }
 .stat .sub { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; max-width: 30ch; color: var(--muted); }
 .stat .sub.pos { color: var(--pos); }
 .stat .sub.neg { color: var(--neg); }
