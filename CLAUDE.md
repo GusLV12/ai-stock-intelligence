@@ -9,6 +9,7 @@ Plataforma **personal** de inteligencia bursátil (un solo usuario). Documento r
 - **Contraseñas y claves**: nunca guardarlas ni escribirlas en archivos, memoria o chat. Se cambian al final (`manage.py changepassword guslv`, claves de Twelve Data/Banxico en un `.env` ignorado por git). Primero desarrollo y pruebas.
 - **No es asesoría financiera**: las zonas, valuaciones, señales y escenarios son estimaciones reproducibles, no predicciones. Nunca ejecutar operaciones reales ni conectar brokers.
 - No copiar al repo datos reales del usuario (XLSX/PDF de GBM, `db.sqlite3` está ignorado).
+- **Repo ligero**: nunca versionar contraseñas/claves, entornos virtuales, `node_modules`, imágenes o capturas, resultados de pruebas (`test-results`, trazas), bases de datos ni registros. El código de las pruebas sí se versiona. Antes de cada commit sigue la skill `.claude/skills/repo-limpio/SKILL.md` (lista de revisión y qué hacer si algo se coló).
 
 ## Stack
 
