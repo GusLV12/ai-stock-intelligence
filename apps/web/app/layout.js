@@ -17,6 +17,13 @@ export const metadata = {
   description: "Plataforma personal de inteligencia bursátil",
 };
 
+export const viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0b10" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f5fa" },
+  ],
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="es-MX" className={`${geistSans.variable} ${geistMono.variable}`}>

@@ -91,6 +91,7 @@ export default function Shell({ children }) {
 
   return (
     <div className="shell">
+      <a className="skip" href="#contenido">Saltar al contenido</a>
       <aside className="sidebar">
         <Link className="brand" href="/" aria-label="AI Stock Intelligence, inicio">
           <span className="brand-mark" aria-hidden="true">
@@ -116,7 +117,7 @@ export default function Shell({ children }) {
           </ul>
         </nav>
       </aside>
-      <div className="shell-main">{children}</div>
+      <div className="shell-main" id="contenido" tabIndex={-1}>{children}</div>
     </div>
   );
 }
