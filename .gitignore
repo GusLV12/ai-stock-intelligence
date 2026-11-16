@@ -68,3 +68,10 @@ htmlcov/
 # Excepciones deliberadas (iconos mínimos de la aplicación)
 !apps/web/public/**
 .claude/settings.local.json
+
+# Skills de terceros instaladas en local (impeccable, web-design-guidelines, playwright-cli)
+.agents/
+.claude/skills/impeccable/
+.claude/skills/web-design-guidelines/
+.claude/skills/playwright-cli/
+skills-lock.json
