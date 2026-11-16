@@ -104,7 +104,7 @@ export default function Shell({ children }) {
         <nav aria-label="Menú principal">
           <ul className="sidenav">
             {GROUPS.flatMap((group, gi) => [
-              ...(gi > 0 ? [<li key={`sep-${gi}`} className="sep" role="separator" />] : []),
+              ...(gi > 0 ? [<li key={`sep-${gi}`} className="sep" aria-hidden="true" />] : []),
               ...group.map(([href, label, icon]) => (
                 <li key={href}>
                   <Link href={href} title={label} aria-current={isActive(pathname, href) ? "page" : undefined}>
