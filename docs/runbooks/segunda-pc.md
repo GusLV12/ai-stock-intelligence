@@ -26,7 +26,7 @@ Si usas otro Python: `E2E_PYTHON=ruta\python.exe npm test`. Si 3010/8010 están 
 
 ## 4. Tus datos reales
 No viajan por git (`db.sqlite3`, `imports/`, PDF y XLSX están ignorados). Para moverlos usa un respaldo cifrado:
-`python manage.py backup_db` en la PC origen, copia el `.asibak` y la clave por un canal seguro (nunca por git ni chat) y
+`python manage.py backup_db --dest <carpeta>` en la PC origen (con `BACKUP_KEY` definida en tu terminal; la carpeta puede ser `infraackups` o una USB), copia el `.asibak` y la clave por un canal seguro (nunca por git ni chat) y
 `python manage.py restore_db --target ...` en la nueva PC. Ver `docs/runbooks/despliegue-remoto.md`.
 
 ## 5. Con más RAM

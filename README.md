@@ -78,7 +78,7 @@ Con el backend instalado (en `apps/backend`, con el entorno virtual activo):
 python manage.py refresh_market_data                   # precios y tipo de cambio
 python manage.py refresh_price_history --range 5y      # historial diario (gráficas, riesgo, liquidez)
 python manage.py ingest_sec_financials --held          # estados financieros de la SEC (requiere SEC_CONTACT)
-python manage.py backup_db                             # respaldo cifrado (ver docs/runbooks/despliegue-remoto.md)
+python manage.py backup_db --dest ..\..\infraackups  # respaldo cifrado (requiere BACKUP_KEY; ver docs/runbooks/segunda-pc.md)
 ```
 
 ### 1.4 Base de demostración (datos ficticios)
