@@ -151,8 +151,20 @@ a { color: var(--accent-fg); text-underline-offset: 3px; }
 .small { font-size: var(--fs-sm); max-width: 80ch; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.grid2 table { min-width: 0; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* Un panel dentro de otro no lleva su propio borde: se distingue por el tono. */
+.card .card { background: var(--surface-2); border-color: transparent; }
+.card .notice:not(.warn) { background: var(--surface-2); border-color: transparent; }
+.card .form fieldset { background: transparent; }
+
+/* Atajo de teclado para saltar el menú */
+.skip { position: absolute; left: 12px; top: -56px; z-index: 30; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--accent); color: var(--on-accent); font-size: var(--fs-sm); font-weight: 600; text-decoration: none; }
+.skip:focus { top: 12px; }
+a, button, input, select, textarea, label { touch-action: manipulation; }
+#contenido:focus { outline: none; }
 
 /* ------------------------------------------------------------------- Login */
 .login { width: min(400px, 100%); display: flex; flex-direction: column; gap: 14px; padding: 28px; }
