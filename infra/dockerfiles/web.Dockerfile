@@ -2,8 +2,8 @@
 # Construir desde la raíz:  docker build -f infra/dockerfiles/web.Dockerfile -t asi-web .
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY apps/web/package.json apps/web/package-lock.json ./
-RUN npm ci
+COPY apps/web/package.json ./
+RUN npm install --no-package-lock --no-audit --no-fund
 
 FROM node:22-alpine AS build
 WORKDIR /app

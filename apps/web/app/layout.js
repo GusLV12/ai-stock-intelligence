@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Shell from "./Shell";
+import { MotionProvider } from "./lib/Motion";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +29,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="es-MX" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>
-        <Shell>{children}</Shell>
+        <MotionProvider><Shell>{children}</Shell></MotionProvider>
       </body>
     </html>
   );
