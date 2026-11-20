@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, ApiError, fmtMoney, fmtSigned, signClass } from "./lib/api";
+import { MotionPanel } from "./lib/Motion";
+import GbmImport from "./GbmImport";
 
 const STALE_HOURS = 48;
 
@@ -18,14 +20,22 @@ function Value({ children }) {
   );
 }
 
-function Stat({ label, value, sub, tone }) {
+function Stat({ label, value, sub, tone, featured = false }) {
   return (
-    <div className="card stat">
-      <span className="label">{label}</span>
-      <strong className={tone}><Value>{value}</Value></strong>
-      {sub && <span className={`sub ${tone ?? ""}`}>{sub}</span>}
+    <div className={`portfolio-stat${featured ? " portfolio-stat-featured" : ""}`}>
+      <div className="portfolio-stat-head"><span className="portfolio-stat-label">{label}</span></div>
+      <strong className={`portfolio-stat-value ${tone ?? ""}`}><Value>{value}</Value></strong>
+      {sub && <span className={`portfolio-stat-sub ${tone ?? ""}`}>{sub}</span>}
     </div>
   );
+}
+
+function signedMoney(value, currency) {
+  return value == null ? "—" : `${fmtSigned(value)}\u00a0${currency}`;
+}
+
+function portfolioMoney(value, currency) {
+  return value == null ? "—" : `${fmtMoney(value, currency)}\u00a0${currency}`;
 }
 
 const ALLOC_COLORS = ["#7c6cff", "#2dd4bf", "#f472b6", "#fbbf24", "#60a5fa"];
@@ -68,6 +78,8 @@ export default function Dashboard() {
   const router = useRouter();
   const [state, setState] = useState({ status: "loading" });
   const [user, setUser] = useState(null);
+  const [view, setView] = useState("posiciones");
+  const [currency, setCurrency] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -107,10 +119,23 @@ export default function Dashboard() {
     );
 
   const { data } = state;
-  const cur = Object.keys(data.totals_by_currency)[0];
+  const currencies = Object.keys(data.totals_by_currency);
+  const cur = currencies.includes(currency) ? currency : currencies[0];
   const t = cur ? data.totals_by_currency[cur] : null;
   const stale = data.prices.oldest_age_hours != null && data.prices.oldest_age_hours > STALE_HOURS;
   const perf = cur ? data.performance?.[cur] : null;
+  const positions = data.positions.filter((p) => p.currency === cur);
+  const grouped = new Map();
+  for (const p of positions) {
+    if (p.weight_pct == null || Number(p.weight_pct) <= 0) continue;
+    grouped.set(p.ticker, (grouped.get(p.ticker) ?? 0) + Number(p.weight_pct));
+  }
+  const topPositions = [...grouped].sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  async function reloadDashboard() {
+    const refreshed = await api("/api/v1/portfolio/dashboard");
+    setState({ status: "ready", data: refreshed });
+  }
 
   return (
     <main className="wrap">
@@ -120,20 +145,32 @@ export default function Dashboard() {
           <p className="muted">Sesión de {user?.username}</p>
         </div>
         <div className="actions">
+          <button type="button" onClick={() => setView("gbm")}>Importar GBM</button>
           <button className="ghost" onClick={logout}>Cerrar sesión</button>
         </div>
       </header>
 
-      {data.prices.newest_at && (
+      {(data.prices.newest_at || data.unpriced_positions > 0) && (
         <p className={`notice ${stale ? "warn" : ""}`} role="status">
-          Precios de {data.prices.providers.join(", ")} (no son tiempo real): el más reciente es del{" "}
+          {data.prices.newest_at ? <>Precios de {data.prices.providers.join(", ")} (no son tiempo real): el más reciente es del{" "}
           {new Date(data.prices.newest_at).toLocaleString("es-MX")} y el más antiguo tiene{" "}
-          {data.prices.oldest_age_hours} h{stale ? " — desactualizados" : ""}.
+          {data.prices.oldest_age_hours} h{stale ? " — desactualizados" : ""}.</> : "No hay precios disponibles."}
           {data.unpriced_positions > 0 && ` ${data.unpriced_positions} posición(es) sin precio.`}
           {data.prices.uses_fallback &&
             " Incluye una fuente alterna no oficial (Yahoo Finance): puede retrasarse, cambiar o fallar sin aviso; verifica contra tu broker."}
         </p>
       )}
+
+      <nav className="portfolio-tabs" aria-label="Secciones del portafolio">
+        <button type="button" aria-pressed={view === "posiciones"} onClick={() => setView("posiciones")}>Posiciones</button>
+        <button type="button" aria-pressed={view === "gbm"} onClick={() => setView("gbm")}>Importar y exportar GBM</button>
+      </nav>
+
+      {view === "gbm" ? <GbmImport onImported={reloadDashboard} /> : (
+      <MotionPanel className="portfolio-overview">
+      {currencies.length > 1 && <label className="portfolio-currency">Moneda del resumen
+        <select value={cur} onChange={(e) => setCurrency(e.target.value)}>{currencies.map((c) => <option key={c}>{c}</option>)}</select>
+      </label>}
 
       {!t ? (
         <div className="card empty">
@@ -142,22 +179,22 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <section className="stats" aria-label="Resumen">
-            <Stat label="Valor de mercado" value={fmtMoney(t.market_value, cur)} />
-            <Stat label="Costo" value={fmtMoney(t.cost_basis, cur)} />
+          <section className="portfolio-stats" aria-label="Resumen">
+            <Stat label="Valor de mercado" value={portfolioMoney(t.market_value, cur)} featured />
+            <Stat label="Costo" value={portfolioMoney(t.cost_basis, cur)} />
             <Stat
               label="Ganancia no realizada"
-              value={fmtSigned(t.unrealized_pnl)}
+              value={signedMoney(t.unrealized_pnl, cur)}
               sub={t.unrealized_pct != null ? fmtSigned(t.unrealized_pct, "%") : null}
               tone={signClass(t.unrealized_pnl)}
             />
-            <Stat label="Ganancia realizada" value={fmtSigned(t.realized_pnl)} tone={signClass(t.realized_pnl)} />
-            <Stat label="Efectivo" value={fmtMoney(t.cash, cur)} />
-            {data.fx && (
+            <Stat label="Ganancia realizada" value={signedMoney(t.realized_pnl, cur)} tone={signClass(t.realized_pnl)} />
+            <Stat label="Efectivo del reporte" value={portfolioMoney(t.cash, cur)} sub={t.cash_observed_at ? `${t.cash_complete ? "Reportado" : "Parcial"} · ${new Date(t.cash_observed_at).toLocaleString("es-MX")}; no incluye movimientos posteriores.` : "Sin reporte de efectivo."} />
+            {cur === "USD" && data.fx && (
               <Stat
-                label="Total en MXN (referencia)"
-                value={fmtMoney(data.fx.total_value_mxn, "MXN")}
-                sub={`${data.fx.pair} ${data.fx.rate} · ${data.fx.provider}${data.fx.is_fallback ? " (respaldo no oficial)" : ""}`}
+                label="USD en MXN (referencia)"
+                value={portfolioMoney(data.fx.total_value_mxn, "MXN")}
+                sub={`${data.fx.pair} ${data.fx.rate} · ${data.fx.provider} · ${new Date(data.fx.observed_at).toLocaleString("es-MX")}${data.fx.is_fallback ? " (respaldo no oficial)" : ""} · Incluye efectivo del reporte.`}
               />
             )}
             {perf && (
@@ -170,8 +207,15 @@ export default function Dashboard() {
             )}
           </section>
 
-          <Allocation positions={data.positions} />
+          {topPositions.length > 0 && <section className="portfolio-top" aria-label="Tres posiciones principales">
+            <div className="portfolio-section-head"><div><h2>Tus 3 posiciones principales</h2><p className="muted small">Por peso de las posiciones con precio en {cur}; no son recomendaciones.</p></div></div>
+            <div className="portfolio-top-grid">{topPositions.map(([ticker, weight], i) => <div className="portfolio-top-item" key={ticker}>
+              <span className="portfolio-rank">{i + 1}</span><strong>{ticker}</strong><span className="portfolio-top-weight">{weight.toFixed(2)}% <small>del valor con precio</small></span>
+            </div>)}</div>
+          </section>}
+          <Allocation positions={positions} />
 
+          <div className="portfolio-main-grid">
           <div className="tablewrap">
             <table>
               <caption className="sr">Posiciones</caption>
@@ -188,19 +232,19 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {data.positions.map((p) => (
-                  <tr key={p.ticker}>
+                {positions.map((p, index) => (
+                  <tr key={`${p.ticker}-${index}`}>
                     <th scope="row">{p.ticker}</th>
                     <td className="num">{p.quantity}</td>
-                    <td className="num">{fmtMoney(p.average_cost, p.currency)}</td>
+                    <td className="num">{portfolioMoney(p.average_cost, p.currency)}</td>
                     <td className="num">
-                      {fmtMoney(p.market_price, p.currency)}
+                      {portfolioMoney(p.market_price, p.currency)}
                       {p.price_provider && (
                         <small className="src">{p.price_provider} · {p.price_age_hours} h</small>
                       )}
                     </td>
-                    <td className="num">{fmtMoney(p.market_value, p.currency)}</td>
-                    <td className={`num ${signClass(p.unrealized_pnl)}`}>{fmtSigned(p.unrealized_pnl)}</td>
+                    <td className="num">{portfolioMoney(p.market_value, p.currency)}</td>
+                    <td className={`num ${signClass(p.unrealized_pnl)}`}>{signedMoney(p.unrealized_pnl, p.currency)}</td>
                     <td className={`num ${signClass(p.unrealized_pct)}`}>{fmtSigned(p.unrealized_pct, "%")}</td>
                     <td className="num">{p.weight_pct == null ? "—" : `${p.weight_pct}%`}</td>
                   </tr>
@@ -208,8 +252,19 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
+          <aside className="portfolio-quality" aria-label="Calidad de datos">
+            <h2>Calidad de datos</h2>
+            <div className={`portfolio-quality-item ${stale || data.unpriced_positions ? "attention" : ""}`}>
+              <strong>{!data.prices.newest_at ? "Sin precios" : stale ? "Precios desactualizados" : "Precios registrados"}</strong>
+              <p>{data.unpriced_positions ? `${data.unpriced_positions} posición(es) sin precio. ` : ""}{data.prices.oldest_age_hours != null ? `Antigüedad máxima: ${data.prices.oldest_age_hours} h.` : "No hay observaciones disponibles."}</p>
+            </div>
+            <div className="portfolio-quality-item"><strong>Efectivo del reporte</strong><p>{t.cash_observed_at ? `Última referencia: ${new Date(t.cash_observed_at).toLocaleString("es-MX")}. No se actualiza con movimientos posteriores.` : "No hay un saldo reportado para esta moneda."}</p></div>
+            {perf && <div className="portfolio-quality-item"><strong>{perf.xirr_pct == null ? "XIRR no evaluable" : "Rendimiento anual (XIRR)"}</strong><p>{perf.reason ?? "Calculado con los flujos registrados."}</p></div>}
+          </aside>
+          </div>
         </>
       )}
+      </MotionPanel>)}
       <p className="muted small">{data.disclaimer}</p>
     </main>
   );

@@ -111,10 +111,11 @@ export async function apiDownload(path, body) {
 }
 
 // Sube un archivo (multipart) a un endpoint protegido con CSRF; devuelve el JSON de la respuesta.
-export async function apiUpload(path, file) {
+export async function apiUpload(path, file, fields = {}) {
   const token = await csrfToken();
   const form = new FormData();
   form.append("file", file);
+  for (const [name, value] of Object.entries(fields)) form.append(name, String(value));
   let res;
   try {
     res = await fetch(path, { method: "POST", headers: { "X-CSRFToken": token }, body: form, cache: "no-store" });
