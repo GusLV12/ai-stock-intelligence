@@ -68,8 +68,10 @@ def build_dashboard(user, account_ids=None) -> dict:
         if row["market_value"] is not None:
             t["market_value"] += row["market_value"]
             t["priced_cost_basis"] += row["cost_basis"]
+            t["priced_count"] += 1
 
     cash = defaultdict(lambda: ZERO)
+    cash_dates = defaultdict(list)
     latest_snap = {}
     snap_qs = PositionSnapshot.objects.filter(account__owner=user)
     if account_ids is not None:
@@ -79,37 +81,57 @@ def build_dashboard(user, account_ids=None) -> dict:
     for s in latest_snap.values():
         if s.cash_amount is not None:
             cash[s.cash_currency] += s.cash_amount
+            cash_dates[s.cash_currency].append(s.as_of)
 
+    acc_qs = InvestmentAccount.objects.filter(owner=user)
+    if account_ids is not None:
+        acc_qs = acc_qs.filter(id__in=list(account_ids))
+    accounts = list(acc_qs)
     out_totals = {}
     for cur, t in totals.items():
         mv, pc = t["market_value"], t["priced_cost_basis"]
+        # La moneda base no limita las monedas que puede tener una cuenta. Sin un
+        # reporte de cada cuenta no se puede afirmar que el efectivo esté completo.
+        cash_accounts = accounts
+        cash_complete = bool(cash_accounts) and all(
+            a.id in latest_snap
+            and latest_snap[a.id].cash_amount is not None
+            and latest_snap[a.id].cash_currency == cur
+            for a in cash_accounts
+        )
         out_totals[cur] = {
             "cost_basis": _q(t["cost_basis"]),
-            "market_value": _q(mv),
-            "unrealized_pnl": _q(mv - pc),
+            "market_value": _q(mv) if t["priced_count"] else None,
+            "unrealized_pnl": _q(mv - pc) if t["priced_count"] else None,
             "unrealized_pct": _q((mv - pc) / pc * 100) if pc else None,
             "realized_pnl": _q(t["realized_pnl"]),
-            "cash": _q(cash.get(cur, ZERO)),
+            "cash": _q(cash[cur]) if cur in cash else None,
+            "cash_observed_at": min(cash_dates[cur]) if cash_dates[cur] else None,
+            "cash_complete": cash_complete,
+            "cash_note": "Efectivo de los reportes disponibles; no refleja movimientos posteriores.",
         }
 
     fx_block = None
     if "USD" in out_totals and (fx := latest_fx("USD", "MXN")):
-        mv = Decimal(out_totals["USD"]["market_value"]) + Decimal(out_totals["USD"]["cash"])
+        cash_usd = out_totals["USD"]["cash"]
+        market_usd = out_totals["USD"]["market_value"]
+        mv = (
+            Decimal(market_usd) + Decimal(cash_usd)
+            if cash_usd is not None and market_usd is not None and out_totals["USD"]["cash_complete"]
+            else None
+        )
         fx_block = {
             "pair": "USD/MXN",
             "rate": str(fx.rate.normalize()),
             "provider": fx.provider,
             "observed_at": fx.observed_at,
             "age_hours": _age_hours(now, fx.observed_at),
-            "total_value_mxn": _q(mv * fx.rate),
+            "total_value_mxn": _q(mv * fx.rate) if mv is not None else None,
             "is_fallback": fx.provider in FALLBACK_PROVIDERS,
             "note": "Tipo de cambio de referencia; no es el que aplica el broker.",
         }
 
-    acc_qs = InvestmentAccount.objects.filter(owner=user)
-    if account_ids is not None:
-        acc_qs = acc_qs.filter(id__in=list(account_ids))
-    perf_account_ids = list(acc_qs.values_list("id", flat=True))
+    perf_account_ids = [a.id for a in accounts]
     newest = max((p.observed_at for p in observed), default=None)
     performance = {}
     for cur in out_totals:
@@ -118,7 +140,8 @@ def build_dashboard(user, account_ids=None) -> dict:
         terminal = totals[cur]["market_value"] if priced_all else None
         performance[cur] = money_weighted_return(perf_account_ids, cur, terminal, newest or now, priced_all)
 
-    total_mv = sum((r["market_value"] for r in rows if r["market_value"] is not None), ZERO)
+    # Nunca sumar cantidades expresadas en monedas diferentes para ponderar.
+    total_mv = {cur: t["market_value"] for cur, t in totals.items()}
     positions = []
     for row in sorted(rows, key=lambda x: x["market_value"] or ZERO, reverse=True):
         mv = row["market_value"]
@@ -136,7 +159,9 @@ def build_dashboard(user, account_ids=None) -> dict:
                 "price_age_hours": row["price_age_hours"],
                 "unrealized_pnl": _q(row["unrealized_pnl"]),
                 "unrealized_pct": _q(row["unrealized_pct"]),
-                "weight_pct": _q(mv / total_mv * 100) if mv is not None and total_mv else None,
+                "weight_pct": _q(mv / total_mv[row["currency"]] * 100)
+                if mv is not None and total_mv[row["currency"]]
+                else None,
                 "realized_pnl": _q(row["realized_pnl"]),
             }
         )

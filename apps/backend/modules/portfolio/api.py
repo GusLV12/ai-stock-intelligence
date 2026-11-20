@@ -1,7 +1,10 @@
+import csv
 from decimal import Decimal
 
 from django.db.models import Sum
+from django.http import HttpResponse
 from rest_framework import serializers, status
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -71,7 +74,9 @@ def _positions_for(user, account_id=None, account_ids=None):
         pairs = pairs.filter(account_id=account_id)
     if account_ids is not None:
         pairs = pairs.filter(account_id__in=list(account_ids))
-    pairs = pairs.values_list("account_id", "instrument_id").distinct()
+    # El orden predeterminado de TaxLot añade columnas al SELECT DISTINCT y
+    # repetiría una posición por cada lote de la misma emisora.
+    pairs = pairs.order_by().values_list("account_id", "instrument_id").distinct()
     accounts = {a.id: a for a in InvestmentAccount.objects.filter(owner=user)}
     instruments = {i.id: i for i in Instrument.objects.all()}
     rows = []
@@ -147,12 +152,99 @@ class SalesView(APIView):
 
 class TaxYearSummaryView(APIView):
     def get(self, request, year):
-        return Response(year_summary(request.user, year))
+        return Response(year_summary(request.user, year, _tax_account(request)))
 
 
 class TaxYearSalesView(APIView):
     def get(self, request, year):
-        return Response(_stringify(sales_for_year(request.user, year)))
+        return Response(_stringify(sales_for_year(request.user, year, _tax_account(request))))
+
+
+def _tax_account(request):
+    account = request.query_params.get("account")
+    if not account:
+        return None
+    if (
+        not account.isdecimal()
+        or not InvestmentAccount.objects.filter(owner=request.user, pk=int(account)).exists()
+    ):
+        raise NotFound("Cuenta no encontrada.")
+    return int(account)
+
+
+def _csv_text(value):
+    """Neutraliza fórmulas en campos de texto, incluso tras espacios o caracteres de control."""
+    text = str(value or "")
+    return (
+        "'" + text
+        if text.lstrip(" \t\r\n").startswith(("=", "+", "-", "@")) or text.startswith(("\t", "\r", "\n"))
+        else text
+    )
+
+
+class TaxYearExportView(APIView):
+    def get(self, request, year):
+        account_id = _tax_account(request)
+        summary = year_summary(request.user, year, account_id)
+        sales = sales_for_year(request.user, year, account_id)
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="ventas-{year}.csv"'
+        response.write("\ufeff")
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "Tipo",
+                "Fecha México",
+                "Cuenta",
+                "Emisora",
+                "Símbolo",
+                "Moneda",
+                "Cantidad",
+                "Ingreso bruto",
+                "Comisión",
+                "Costo FIFO",
+                "Resultado contable",
+                "Pendientes",
+            ]
+        )
+        writer.writerow(["Aviso", year, "", "", "", "", "", "", "", "", "", _csv_text(summary["warning"])])
+        for currency, totals in summary["by_currency"].items():
+            writer.writerow(
+                [
+                    "Resumen",
+                    year,
+                    "",
+                    "",
+                    "",
+                    _csv_text(currency),
+                    "",
+                    totals["gross_proceeds"],
+                    totals["fees"],
+                    totals["cost_basis_book"],
+                    totals["realized_pnl_book"],
+                    "",
+                ]
+            )
+        from .fiscal import MX
+
+        for sale in sales:
+            writer.writerow(
+                [
+                    "Venta",
+                    sale["executed_at"].astimezone(MX).isoformat(),
+                    _csv_text(sale["account"]),
+                    _csv_text(sale["instrument"]),
+                    _csv_text(sale["ticker"]),
+                    _csv_text(sale["currency"]),
+                    sale["quantity"],
+                    sale["gross_proceeds"],
+                    sale["fees"],
+                    sale["cost_basis_book"],
+                    sale["realized_pnl_book"],
+                    _csv_text("; ".join(sale["pending"])),
+                ]
+            )
+        return response
 
 
 def _stringify(rows):

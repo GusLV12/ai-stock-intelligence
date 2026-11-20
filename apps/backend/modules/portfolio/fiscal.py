@@ -17,12 +17,18 @@ MX = ZoneInfo("America/Mexico_City")
 ZERO = Decimal(0)
 
 
-def sales_for_year(user, year: int):
+def sales_for_year(user, year: int, account_id=None):
     """Ventas confirmadas del ejercicio (año calendario en hora de México) con su costo asignado."""
     out = []
-    qs = Transaction.objects.filter(
-        account__owner=user, operation=Transaction.Operation.SELL, status=Transaction.Status.CONFIRMED
-    ).select_related("instrument", "account")
+    qs = (
+        Transaction.objects.filter(
+            account__owner=user, operation=Transaction.Operation.SELL, status=Transaction.Status.CONFIRMED
+        )
+        .select_related("instrument", "account")
+        .prefetch_related("instrument__identifiers")
+    )
+    if account_id is not None:
+        qs = qs.filter(account_id=account_id)
     for s in qs.order_by("executed_at", "id"):
         if s.executed_at.astimezone(MX).year != year:
             continue
@@ -37,7 +43,9 @@ def sales_for_year(user, year: int):
             {
                 "id": s.id,
                 "account": s.account.name,
+                "account_id": s.account_id,
                 "instrument": s.instrument.name,
+                "ticker": next((i.value for i in s.instrument.identifiers.all() if i.kind == "TICKER"), ""),
                 "executed_at": s.executed_at,
                 "quantity": s.quantity,
                 "gross_proceeds": s.quantity * s.price_per_unit,
@@ -53,8 +61,8 @@ def sales_for_year(user, year: int):
     return out
 
 
-def year_summary(user, year: int) -> dict:
-    sales = sales_for_year(user, year)
+def year_summary(user, year: int, account_id=None) -> dict:
+    sales = sales_for_year(user, year, account_id)
     by_cur = defaultdict(lambda: defaultdict(lambda: ZERO))
     for s in sales:
         t = by_cur[s["currency"]]

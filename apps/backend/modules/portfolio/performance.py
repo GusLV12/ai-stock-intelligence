@@ -59,6 +59,8 @@ def money_weighted_return(
         }
     if not priced_all or terminal_value is None:
         return {"xirr_pct": None, "reason": "No evaluable: hay posiciones sin precio."}
+    if terminal_at < txs[-1].executed_at:
+        return {"xirr_pct": None, "reason": "No evaluable: hay operaciones posteriores a los precios."}
     flows = []
     for t in txs:
         gross = t.quantity * t.price_per_unit

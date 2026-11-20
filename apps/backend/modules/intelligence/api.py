@@ -93,7 +93,12 @@ class ExposureView(APIView):
         result = exposure.analyze(loaded["holdings"], _policy_dict(policy) if policy else None)
         if result["evaluable"]:
             dash = build_dashboard(request.user)["totals_by_currency"].get("USD")
-            if dash:
+            if (
+                dash
+                and dash["cash_complete"]
+                and dash["cash"] is not None
+                and dash["market_value"] is not None
+            ):
                 dash_total = Decimal(dash["market_value"]) + Decimal(dash["cash"])
                 # Solo comparable si todas las posiciones valoradas están en USD y ninguna quedó fuera.
                 comparable = not loaded["unconverted"] and all(
