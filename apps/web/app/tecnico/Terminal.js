@@ -6,6 +6,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CandlestickSeries, createChart, HistogramSeries, LineSeries } from "lightweight-charts";
 import { api, ApiError } from "../lib/api";
 import { chartPalette } from "../lib/chartTheme";
+import { MotionPanel } from "../lib/Motion";
+import Explorer from "./Explorer";
+import SymbolSearch from "./SymbolSearch";
 
 const TABS = [["daily", "Diario"], ["intraday", "Intradía"], ["plan", "Plan de operación"], ["alerts", "Alertas"], ["liquidity", "Liquidez"]];
 const num = (v) => (String(v ?? "").trim() === "" ? undefined : String(v).trim().replace(",", "."));
@@ -29,7 +32,7 @@ function useGuard() {
 const palette = chartPalette;
 
 /** Gráfica de precio con paneles opcionales (RSI y MACD). Se recrea cuando cambian los datos. */
-function PriceChart({ data, overlays, panes, height = 420 }) {
+function PriceChart({ data, overlays, panes, height = 420, drawings = [], selectedDrawing = null, range = 0, onPoint }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current || !data) return undefined;
@@ -41,11 +44,13 @@ function PriceChart({ data, overlays, panes, height = 420 }) {
       rightPriceScale: { borderColor: p.grid },
       timeScale: { borderColor: p.grid, timeVisible: !!data.intraday },
     });
+    let priceSeries;
     if (data.candles?.length && data.candles[0].open != null) {
-      const candles = chart.addSeries(CandlestickSeries, { upColor: p.up, downColor: p.down, borderVisible: false, wickUpColor: p.up, wickDownColor: p.down });
-      candles.setData(data.candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+      priceSeries = chart.addSeries(CandlestickSeries, { upColor: p.up, downColor: p.down, borderVisible: false, wickUpColor: p.up, wickDownColor: p.down });
+      priceSeries.setData(data.candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
     } else if (data.candles?.length) {
-      chart.addSeries(LineSeries, { color: p.a, lineWidth: 2 }).setData(data.candles.map((c) => ({ time: c.time, value: c.close })));
+      priceSeries = chart.addSeries(LineSeries, { color: p.a, lineWidth: 2 });
+      priceSeries.setData(data.candles.map((c) => ({ time: c.time, value: c.close })));
     }
     const line = (series, color, opts = {}, pane = 0) => {
       if (series?.length) chart.addSeries(LineSeries, { color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, ...opts }, pane).setData(series);
@@ -60,7 +65,25 @@ function PriceChart({ data, overlays, panes, height = 420 }) {
       if (first && last) chart.addSeries(LineSeries, { color: lv.color, lineWidth: 1, lineStyle: 1, priceLineVisible: false, lastValueVisible: false }, 0)
         .setData([{ time: first, value: lv.price }, { time: last, value: lv.price }]);
     });
+    for (const drawing of drawings) {
+      const color = drawing.id === selectedDrawing ? p.up : p.b;
+      if (drawing.kind === "horizontal" && priceSeries) {
+        priceSeries.createPriceLine({ price: Number(drawing.points[0].price), color, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "Nivel personal" });
+      } else if (drawing.kind === "trend") {
+        line(drawing.points.map((point) => ({ time: point.time, value: Number(point.price) })), color, { lineWidth: 2 });
+      }
+    }
+    if (onPoint && priceSeries) chart.subscribeClick((event) => {
+      if (!event.point || !event.time || (event.paneIndex != null && event.paneIndex !== 0)) return;
+      const price = priceSeries.coordinateToPrice(event.point.y);
+      if (price != null && price > 0 && typeof event.time === "string") onPoint({ time: event.time, price: Number(price).toFixed(4) });
+    });
     let pane = 1;
+    if (panes.volume && data.candles?.some((c) => c.volume != null)) {
+      chart.addSeries(HistogramSeries, { color: p.c, priceLineVisible: false, lastValueVisible: false }, pane)
+        .setData(data.candles.filter((c) => c.volume != null).map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? p.up : p.down })));
+      pane += 1;
+    }
     if (panes.rsi && data.series?.rsi?.length) {
       line(data.series.rsi, p.a, { lineWidth: 2, priceLineVisible: false }, pane);
       [30, 70].forEach((v) => line(data.series.rsi.map((x) => ({ time: x.time, value: v })), p.grid, { lineStyle: 2 }, pane));
@@ -72,12 +95,13 @@ function PriceChart({ data, overlays, panes, height = 420 }) {
       line(data.series.macd, p.a, {}, pane);
       line(data.series.macd_signal, p.b, {}, pane);
     }
-    chart.timeScale().fitContent();
+    if (range && data.candles?.length) chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.candles.length - range), to: data.candles.length - 1 });
+    else chart.timeScale().fitContent();
     const resize = () => chart.applyOptions({ width: ref.current?.clientWidth ?? 600 });
     resize();
     window.addEventListener("resize", resize);
     return () => { window.removeEventListener("resize", resize); chart.remove(); };
-  }, [data, overlays, panes, height]);
+  }, [data, overlays, panes, height, drawings, selectedDrawing, range, onPoint]);
   return <div ref={ref} className="chartbox" role="img" aria-label="Gráfica de precios con indicadores" />;
 }
 
@@ -87,30 +111,74 @@ function Notes({ items }) {
 }
 
 /* --------------------------------- Diario --------------------------------- */
-function Daily({ ticker, symbols }) {
+function Daily({ ticker, instrumentId, currency, symbols }) {
   const guard = useGuard();
   const [state, setState] = useState({ status: "loading" });
   const [overlays, setOverlays] = useState({ sma: false, ema: true, bollinger: false });
-  const [panes, setPanes] = useState({ rsi: true, macd: false });
+  const [panes, setPanes] = useState({ rsi: true, macd: false, volume: true });
+  const [range, setRange] = useState(252);
+  const [drawings, setDrawings] = useState([]);
+  const [drawingMode, setDrawingMode] = useState("");
+  const [firstPoint, setFirstPoint] = useState(null);
+  const [selectedDrawing, setSelectedDrawing] = useState(null);
+  const [drawingMessage, setDrawingMessage] = useState("");
+  const [manualKind, setManualKind] = useState("horizontal");
 
   useEffect(() => {
     if (!ticker) return undefined;
     let alive = true;
-    api(`/api/v1/technical/analyze?ticker=${encodeURIComponent(ticker)}&days=300`)
+    api(`/api/v1/technical/analyze?ticker=${encodeURIComponent(ticker)}&instrument_id=${instrumentId}&days=1000`)
       .then((d) => { if (alive) setState({ status: "ready", data: d }); })
       .catch((err) => { if (alive && !guard(err)) setState({ status: "error", message: err.message }); });
     return () => { alive = false; };
-  }, [ticker, guard]);
+  }, [ticker, instrumentId, guard]);
 
-  if (!ticker) return <div className="card empty"><h2>Sin emisoras</h2><p>{symbols === null ? "Cargando…" : "Descarga el historial con refresh_price_history."}</p></div>;
-  if (state.status === "loading") return <p role="status">Cargando…</p>;
-  if (state.status === "error") return <p role="alert" className="error">{state.message}</p>;
+  useEffect(() => {
+    if (!instrumentId) return undefined;
+    let alive = true;
+    api(`/api/v1/technical/drawings?instrument_id=${instrumentId}`)
+      .then((data) => { if (alive) setDrawings(data); })
+      .catch((error) => { if (alive && !guard(error)) setDrawingMessage(error.message); });
+    return () => { alive = false; };
+  }, [instrumentId, guard]);
+
+  const saveDrawing = useCallback(async (kind, points) => {
+    try {
+      const item = await api("/api/v1/technical/drawings", { method: "POST", body: { instrument_id: instrumentId, kind, points } });
+      setDrawings((current) => [...current, item]);
+      setSelectedDrawing(item.id); setDrawingMode(""); setFirstPoint(null); setDrawingMessage("Dibujo guardado.");
+    } catch (error) { if (!guard(error)) setDrawingMessage(error.message); }
+  }, [instrumentId, guard]);
+  const chartPoint = useCallback((point) => {
+    if (drawingMode === "horizontal") saveDrawing("horizontal", [point]);
+    if (drawingMode === "trend") {
+      if (!firstPoint) { setFirstPoint(point); setDrawingMessage("Selecciona el segundo punto en otra fecha."); }
+      else if (firstPoint.time === point.time) setDrawingMessage("Elige una fecha distinta para el segundo punto.");
+      else saveDrawing("trend", [firstPoint, point]);
+    }
+  }, [drawingMode, firstPoint, saveDrawing]);
+  async function removeDrawing(id) {
+    try { await api(`/api/v1/technical/drawings/${id}`, { method: "DELETE" }); setDrawings((current) => current.filter((d) => d.id !== id)); setSelectedDrawing(null); setDrawingMessage("Dibujo eliminado."); }
+    catch (error) { if (!guard(error)) setDrawingMessage(error.message); }
+  }
+  function submitDrawing(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const kind = form.get("kind");
+    const points = [{ time: form.get("date1"), price: form.get("price1") }];
+    if (kind === "trend") points.push({ time: form.get("date2"), price: form.get("price2") });
+    saveDrawing(kind, points);
+  }
+
+  if (!ticker) return <div className="technical-chart-area card empty"><h2>Sin emisoras</h2><p>{symbols === null ? "Cargando…" : "Descarga el historial con refresh_price_history."}</p></div>;
+  if (state.status === "loading") return <p className="technical-chart-area" role="status">Cargando…</p>;
+  if (state.status === "error") return <p className="technical-chart-area error" role="alert">{state.message}</p>;
   const d = state.data;
-  if (!d.evaluable) return <div className="card empty"><h2>Sin historial de {ticker}</h2><p>{d.note}</p></div>;
+  if (!d.evaluable) return <div className="technical-chart-area card empty"><h2>Sin historial de {ticker}</h2><p>{d.note}</p></div>;
   const f = d.freshness;
   const chartData = { ...d, levelLines: (d.context.levels ?? []).slice(0, 4).map((lv) => ({ price: lv.price, color: lv.kind === "support" ? palette().up : palette().down })) };
   return (
-    <div className="stack">
+    <div className="technical-chart-area stack">
       <p className={`notice ${f.stale ? "warn" : ""}`} role="status">
         {f.provider} · última vela {f.last_bar} (hace {f.age_days} d){f.stale ? " — desactualizada" : ""}. {f.note}
         {!d.has_ohlc && " Sin máximos/mínimos/volumen guardados: se dibuja una línea y faltan ATR y volumen relativo (vuelve a ejecutar refresh_price_history)."}
@@ -119,13 +187,40 @@ function Daily({ ticker, symbols }) {
         {[["sma", "SMA 20"], ["ema", "EMA 50/200"], ["bollinger", "Bollinger"]].map(([k, l]) => (
           <label key={k} className="check"><input type="checkbox" checked={overlays[k]} onChange={(e) => setOverlays({ ...overlays, [k]: e.target.checked })} /> {l}</label>
         ))}
-        {[["rsi", "RSI"], ["macd", "MACD"]].map(([k, l]) => (
+        {[["rsi", "RSI"], ["macd", "MACD"], ["volume", "Volumen"]].map(([k, l]) => (
           <label key={k} className="check"><input type="checkbox" checked={panes[k]} onChange={(e) => setPanes({ ...panes, [k]: e.target.checked })} /> {l}</label>
         ))}
       </div>
-      <PriceChart data={chartData} overlays={overlays} panes={panes} height={panes.rsi || panes.macd ? 560 : 420} />
+      <div className="technical-range" aria-label="Rango visible">
+        <span>Rango visible:</span>{[[22, "1M"], [66, "3M"], [252, "1A"], [0, "Todo"]].map(([value, label]) => <button key={label} type="button" className={range === value ? "" : "ghost"} aria-pressed={range === value} onClick={() => setRange(value)}>{label}</button>)}
+        <span className="muted small">Indicadores calculados con historial previo disponible.</span>
+      </div>
+      <PriceChart data={chartData} overlays={overlays} panes={panes} height={panes.rsi || panes.macd || panes.volume ? 560 : 420} drawings={drawings} selectedDrawing={selectedDrawing} range={range} onPoint={drawingMode ? chartPoint : undefined} />
+      <details className="technical-drawings">
+        <summary>Dibujos personales ({drawings.length})</summary>
+        <p className="muted small">Se guardan en tu cuenta para esta emisora; son independientes de los niveles calculados.</p>
+        <div className="actions">
+          <button type="button" className={drawingMode === "horizontal" ? "" : "ghost"} onClick={() => { setDrawingMode("horizontal"); setFirstPoint(null); setDrawingMessage("Haz clic sobre el gráfico para colocar el nivel."); }}>Nivel horizontal</button>
+          <button type="button" className={drawingMode === "trend" ? "" : "ghost"} onClick={() => { setDrawingMode("trend"); setFirstPoint(null); setDrawingMessage("Selecciona dos puntos en el gráfico."); }}>Línea de tendencia</button>
+          {drawingMode && <button type="button" className="ghost" onClick={() => { setDrawingMode(""); setFirstPoint(null); setDrawingMessage(""); }}>Cancelar dibujo</button>}
+        </div>
+        <p role="status" className="muted small">{drawingMessage}</p>
+        <details><summary>Introducir puntos con teclado</summary>
+          <form className="technical-drawing-form" onSubmit={submitDrawing}>
+            <label>Tipo<select name="kind" value={manualKind} onChange={(e) => setManualKind(e.target.value)}><option value="horizontal">Nivel horizontal</option><option value="trend">Línea de tendencia</option></select></label>
+            <label>Fecha inicial<input name="date1" type="date" required defaultValue={String(d.as_of)} /></label>
+            <label>Precio inicial<input name="price1" type="number" min="0.00000001" step="any" required /></label>
+            {manualKind === "trend" && <><label>Fecha final<input name="date2" type="date" required /></label><label>Precio final<input name="price2" type="number" min="0.00000001" step="any" required /></label></>}
+            <button type="submit">Guardar dibujo</button>
+          </form>
+        </details>
+        {drawings.length > 0 && <ul className="technical-drawing-list">{drawings.map((drawing) => <li key={drawing.id}>
+          <button type="button" className="ghost" aria-pressed={selectedDrawing === drawing.id} onClick={() => setSelectedDrawing(drawing.id)}>{drawing.kind === "horizontal" ? "Nivel" : "Tendencia"}: {drawing.points.map((p) => `${p.time} · ${money(p.price)}`).join(" → ")}</button>
+          <button type="button" className="ghost" aria-label={`Eliminar dibujo ${drawing.id}`} onClick={() => removeDrawing(drawing.id)}>Eliminar</button>
+        </li>)}</ul>}
+      </details>
       <div className="stats">
-        <div className="card stat"><span className="label">Último cierre</span><strong>{money(d.context.last_close)}</strong><span className="sub">{String(d.as_of)}</span></div>
+        <div className="card stat"><span className="label">Último cierre</span><strong>{money(d.context.last_close)} {currency}</strong><span className="sub">{String(d.as_of)} · {f.provider}</span></div>
         <div className="card stat"><span className="label">RSI 14</span><strong>{d.context.rsi == null ? "—" : Number(d.context.rsi).toFixed(1)}</strong></div>
         <div className="card stat"><span className="label">ATR 14</span><strong>{d.context.atr == null ? "—" : money(d.context.atr)}</strong></div>
       </div>
@@ -152,14 +247,14 @@ function Daily({ ticker, symbols }) {
 }
 
 /* --------------------------------- Intradía -------------------------------- */
-function Intraday({ ticker }) {
+function Intraday({ ticker, instrumentId }) {
   const guard = useGuard();
   const [state, setState] = useState({ status: "idle" });
 
   async function load() {
     setState({ status: "loading" });
     try {
-      setState({ status: "ready", data: await api(`/api/v1/technical/intraday?ticker=${encodeURIComponent(ticker)}`) });
+      setState({ status: "ready", data: await api(`/api/v1/technical/intraday?ticker=${encodeURIComponent(ticker)}&instrument_id=${encodeURIComponent(instrumentId)}`) });
     } catch (err) {
       if (!guard(err)) setState({ status: "error", message: err.message });
     }
@@ -286,7 +381,8 @@ function Alerts({ symbols }) {
   async function create(e) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const body = { ticker: f.get("ticker"), kind, note: f.get("note") };
+    const selected = (symbols ?? []).find((s) => String(s.instrument_id) === f.get("instrument_id"));
+    const body = { ticker: selected?.ticker, instrument_id: selected?.instrument_id, kind, note: f.get("note") };
     if (kind === "SIGNAL") body.signal_id = f.get("signal_id"); else body.threshold = num(f.get("threshold"));
     try {
       await api("/api/v1/technical/alerts", { method: "POST", body });
@@ -315,7 +411,7 @@ function Alerts({ symbols }) {
         <fieldset>
           <legend>Nueva alerta (un solo disparo; no envía mensajes)</legend>
           <label className="field"><span>Emisora</span>
-            <select name="ticker">{(symbols ?? []).map((s) => (<option key={s.ticker} value={s.ticker}>{s.ticker}</option>))}</select></label>
+            <select name="instrument_id">{(symbols ?? []).map((s) => (<option key={`${s.instrument_id}-${s.ticker}`} value={s.instrument_id}>{s.ticker} · {s.market || s.currency}</option>))}</select></label>
           <label className="field"><span>Tipo</span>
             <select value={kind} onChange={(e) => setKind(e.target.value)}>
               <option value="PRICE_ABOVE">Precio sobre</option><option value="PRICE_BELOW">Precio bajo</option><option value="SIGNAL">Señal técnica</option></select></label>
@@ -360,7 +456,7 @@ function SpreadCell({ s }) {
   return s.resolvable ? <>{Number(s.bps).toFixed(1)} pb <span className="muted">(±{Number(s.se_bps).toFixed(1)})</span></> : <span className="muted" title={s.note}>≈ 0 (no distinguible)</span>;
 }
 
-function Liquidity({ ticker }) {
+function Liquidity({ ticker, instrumentId }) {
   const guard = useGuard();
   const [port, setPort] = useState({ status: "loading" });
   const [qty, setQty] = useState("100");
@@ -379,7 +475,7 @@ function Liquidity({ ticker }) {
     setOne({ status: "loading" });
     try {
       const q = num(qty);
-      setOne({ status: "ready", data: await api(`/api/v1/technical/liquidity?ticker=${encodeURIComponent(ticker)}${q ? `&quantity=${encodeURIComponent(q)}` : ""}`) });
+      setOne({ status: "ready", data: await api(`/api/v1/technical/liquidity?ticker=${encodeURIComponent(ticker)}&instrument_id=${encodeURIComponent(instrumentId)}${q ? `&quantity=${encodeURIComponent(q)}` : ""}`) });
     } catch (err) {
       if (!guard(err)) setOne({ status: "error", message: err.message });
     }
@@ -447,7 +543,10 @@ export default function Terminal() {
   const guard = useGuard();
   const [tab, setTab] = useState("daily");
   const [symbols, setSymbols] = useState(null);
-  const [ticker, setTicker] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const selected = symbols?.find((s) => String(s.instrument_id) === selectedId);
+  const ticker = selected?.ticker ?? "";
 
   useEffect(() => {
     let alive = true;
@@ -455,7 +554,7 @@ export default function Terminal() {
       .then((s) => {
         if (!alive) return;
         setSymbols(s);
-        setTicker((cur) => cur || (s.find((x) => x.bars > 0) ?? s[0])?.ticker || "");
+        setSelectedId((cur) => cur || String((s.find((x) => x.bars > 0) ?? s[0])?.instrument_id ?? ""));
       })
       .catch((err) => { if (alive) guard(err); });
     return () => { alive = false; };
@@ -475,18 +574,22 @@ export default function Terminal() {
       </header>
       <div className="row-actions">
         <label htmlFor="sym">Emisora</label>
-        <select id="sym" value={ticker} onChange={(e) => setTicker(e.target.value)}>
-          {(symbols ?? []).map((s) => (<option key={s.ticker} value={s.ticker}>{s.ticker}{s.held ? " ●" : ""}{s.bars ? ` (${s.bars} d)` : " (sin historial)"}</option>))}
+        <select id="sym" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+          {(symbols ?? []).map((s) => (<option key={`${s.instrument_id}-${s.ticker}`} value={s.instrument_id}>{s.ticker}{s.held ? " ●" : ""}{s.bars ? ` (${s.bars} d)` : " (sin historial)"}</option>))}
         </select>
+        <SymbolSearch symbols={symbols} onSelect={(id) => setSelectedId(String(id))} onLoaded={async (id) => {
+          const updated = await api("/api/v1/technical/symbols");
+          setSymbols(updated); setSelectedId(String(id)); setHistoryVersion((v) => v + 1);
+        }} />
         <div role="tablist" aria-label="Secciones" className="row-actions">
           {TABS.map(([k, l]) => (<button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "" : "ghost"} onClick={() => setTab(k)}>{l}</button>))}
         </div>
       </div>
-      {tab === "daily" && <Daily key={ticker} ticker={ticker} symbols={symbols} />}
-      {tab === "intraday" && <Intraday key={ticker} ticker={ticker} />}
-      {tab === "plan" && <Plan />}
-      {tab === "alerts" && <Alerts symbols={symbols} />}
-      {tab === "liquidity" && <Liquidity key={ticker} ticker={ticker} />}
+      {tab === "daily" && <MotionPanel className="technical-workspace"><Explorer symbols={symbols} onSelect={(id) => setSelectedId(String(id))} /><Daily key={`${selectedId}-${historyVersion}`} ticker={ticker} instrumentId={selectedId} currency={selected?.currency} symbols={symbols} /></MotionPanel>}
+      {tab === "intraday" && <MotionPanel><Intraday key={selectedId} ticker={ticker} instrumentId={selectedId} /></MotionPanel>}
+      {tab === "plan" && <MotionPanel><Plan /></MotionPanel>}
+      {tab === "alerts" && <MotionPanel><Alerts symbols={symbols} /></MotionPanel>}
+      {tab === "liquidity" && <MotionPanel><Liquidity key={selectedId} ticker={ticker} instrumentId={selectedId} /></MotionPanel>}
     </main>
   );
 }
