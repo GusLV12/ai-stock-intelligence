@@ -39,6 +39,7 @@ from modules.pricing.api import FxView, PricesView
 from modules.quant.api import ExperimentDetailView, ExperimentsView, OverviewView, VerifyView
 from modules.technical.alerts_api import AlertsView, CancelAlertView, EvaluateAlertsView
 from modules.technical.api import AnalyzeView, ScanView, SymbolsView, TradePlanView
+from modules.technical.explorer_api import DrawingDetailView, DrawingsView, ExplorerView
 from modules.technical.intraday_api import IntradayView
 from modules.technical.liquidity_api import LiquidityView, PortfolioLiquidityView
 from modules.valuations.api import DcfView, FairValueDetailView, FairValueView, ReverseDcfView
@@ -95,6 +96,9 @@ urlpatterns = [
     path("api/v1/quant/experiments/<int:pk>", ExperimentDetailView.as_view(), name="quant-experiment"),
     path("api/v1/quant/experiments/<int:pk>/verify", VerifyView.as_view(), name="quant-verify"),
     path("api/v1/technical/scan", ScanView.as_view(), name="technical-scan"),
+    path("api/v1/technical/explore", ExplorerView.as_view(), name="technical-explore"),
+    path("api/v1/technical/drawings", DrawingsView.as_view(), name="technical-drawings"),
+    path("api/v1/technical/drawings/<int:pk>", DrawingDetailView.as_view(), name="technical-drawing"),
     path("api/v1/technical/trade-plan", TradePlanView.as_view(), name="technical-trade-plan"),
     path("api/v1/portfolio/exposure", ExposureView.as_view(), name="exposure"),
     path("api/v1/screeners/fair-value", RunScreenView.as_view(), name="screener-run"),

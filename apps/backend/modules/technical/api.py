@@ -75,17 +75,17 @@ def _find_instrument(ticker):
 
 class SymbolsView(APIView):
     def get(self, request):
-        held = {h.ticker for h in load_holdings(request.user)["holdings"] if h.asset_class != "CASH"}
+        held = {h.instrument_id for h in load_holdings(request.user)["holdings"] if h.asset_class != "CASH"}
         out = []
         for ident in (
             InstrumentIdentifier.objects.filter(kind="TICKER").select_related("instrument").order_by("value")
         ):
             rows = DailyClose.objects.filter(instrument=ident.instrument)
             n = rows.count()
-            if n == 0 and ident.value not in held:
+            if n == 0 and ident.instrument_id not in held:
                 continue
             last = rows.order_by("-date").first()
-            out.append({"ticker": ident.value, "name": ident.instrument.name, "held": ident.value in held, "bars": n,
+            out.append({"instrument_id": ident.instrument_id, "currency": ident.instrument.currency, "ticker": ident.value, "name": ident.instrument.name, "held": ident.instrument_id in held, "bars": n,
                         "last_bar": last.date if last else None, "has_ohlc": rows.exclude(high=None).exists()})  # fmt: skip
         return Response(plain(out))
 
@@ -103,7 +103,20 @@ class AnalyzeView(APIView):
             raise serializers.ValidationError({"days": "Entero."}) from None
         if not 30 <= days <= MAX_DAYS:
             raise serializers.ValidationError({"days": f"Debe estar entre 30 y {MAX_DAYS}."})
-        instrument = _find_instrument(ticker)
+        instrument_id = request.query_params.get("instrument_id")
+        if instrument_id:
+            ident = (
+                InstrumentIdentifier.objects.filter(
+                    instrument_id=instrument_id, kind="TICKER", value__iexact=ticker
+                )
+                .select_related("instrument")
+                .first()
+                if str(instrument_id).isdigit()
+                else None
+            )
+            instrument = ident.instrument if ident else None
+        else:
+            instrument = _find_instrument(ticker)
         if instrument is None:
             raise serializers.ValidationError({"ticker": "Emisora no encontrada."})
         bars, provider = _bars_for(instrument.id, days)
