@@ -26,3 +26,18 @@ class PriceAlert(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class ChartDrawing(models.Model):
+    """Anotación del usuario, separada de los niveles calculados automáticamente."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chart_drawings"
+    )
+    instrument = models.ForeignKey(Instrument, on_delete=models.CASCADE, related_name="chart_drawings")
+    kind = models.CharField(max_length=12, choices=[("horizontal", "Horizontal"), ("trend", "Tendencia")])
+    points = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
