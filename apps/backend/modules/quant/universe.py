@@ -30,12 +30,16 @@ def ensure_universe(tickers: list[str] | None = None) -> dict[str, Instrument]:
     """Devuelve {ticker: instrumento}. Reutiliza los instrumentos que ya existen (por ejemplo los de tu cartera) y crea
     los demás marcados `research_only`, para que no aparezcan en el catálogo, el screener ni los precios."""
     wanted = [t.strip().upper() for t in (tickers or RESEARCH_TICKERS) if t.strip()]
-    found = {
-        ident.value.upper(): ident.instrument
-        for ident in InstrumentIdentifier.objects.filter(kind="TICKER", value__in=wanted).select_related(
-            "instrument"
-        )
-    }
+    found = {}
+    for ident in InstrumentIdentifier.objects.filter(kind="TICKER", value__in=wanted).select_related(
+        "instrument"
+    ):
+        ticker = ident.value.upper()
+        if ticker in found and found[ticker].id != ident.instrument_id:
+            raise ValueError(
+                f"El ticker {ticker} identifica varias emisoras; selecciona un instrumento concreto."
+            )
+        found[ticker] = ident.instrument
     for t in wanted:
         if t in found:
             continue

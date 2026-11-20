@@ -52,7 +52,7 @@ class LiquidityView(APIView):
         if not ticker:
             raise serializers.ValidationError({"ticker": "Indica un ticker."})
         window, participation, quantity = _params(request)
-        instrument = _find_instrument(ticker)
+        instrument = _find_instrument(ticker, request.query_params.get("instrument_id"))
         if instrument is None:
             raise serializers.ValidationError({"ticker": "Emisora no encontrada."})
         try:

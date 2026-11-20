@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from modules.pricing.history import refresh_history
 from modules.pricing.providers import YahooProvider
+from modules.quant.models import QuantUniverseMember
 from modules.quant.universe import RESEARCH_TICKERS, UNIVERSE_VERSION, ensure_universe
 
 
@@ -31,11 +32,17 @@ class Command(BaseCommand):
                 f"Universo {UNIVERSE_VERSION}: {len(tickers)} emisoras, rango {o['range_']} (no se descargó nada)."
             )
             return
-        mapping = ensure_universe(tickers)
+        try:
+            mapping = ensure_universe(tickers)
+        except ValueError as exc:
+            raise CommandError(str(exc)) from None
         self.stdout.write(
             f"Universo {UNIVERSE_VERSION}: descargando {len(mapping)} emisoras ({o['range_']}) con YAHOO_UNOFFICIAL (no oficial)..."
         )
         res = refresh_history(YahooProvider(), o["range_"], tickers=mapping)
+        for ticker, instrument in mapping.items():
+            if ticker in res["saved"] or ticker in res["unchanged"]:
+                QuantUniverseMember.objects.get_or_create(instrument=instrument)
         total = sum(res["saved"].values())
         self.stdout.write(
             f"Listo: {total} cierres nuevos o completados en {len(res['saved'])} emisoras, {len(res['unchanged'])} sin cambio."

@@ -2,9 +2,9 @@
 
 from django.utils import timezone
 
-from modules.pricing.history_models import DailyClose
 from modules.pricing.services import latest_price
 
+from .api import _bars_for
 from .models import PriceAlert
 from .signals import SignalError, analyze
 
@@ -22,30 +22,7 @@ SIGNAL_IDS = {
 
 
 def _bars(instrument_id):
-    rows = list(DailyClose.objects.filter(instrument_id=instrument_id).order_by("date"))
-    if not rows:
-        return []
-    from collections import defaultdict
-
-    by = defaultdict(list)
-    for r in rows:
-        by[r.provider].append(r)
-    chosen = by[max(by, key=lambda p: len(by[p]))][-300:]
-
-    def f(v):
-        return None if v is None else float(v)
-
-    return [
-        {
-            "date": r.date,
-            "open": f(r.open),
-            "high": f(r.high),
-            "low": f(r.low),
-            "close": float(r.close),
-            "volume": r.volume,
-        }
-        for r in chosen
-    ]
+    return _bars_for(instrument_id, 300)[0]
 
 
 def _check(alert: PriceAlert) -> dict | None:

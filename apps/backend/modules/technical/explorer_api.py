@@ -9,10 +9,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from modules.instruments.models import Instrument, InstrumentIdentifier
-from modules.intelligence.holdings import load_holdings
 
 from . import indicators as ind
-from .api import DEFAULT_DAYS, _bars_for, _freshness
+from .api import DEFAULT_DAYS, _bulk_bars_for, _freshness, _held_instrument_ids
 from .models import ChartDrawing
 
 
@@ -42,11 +41,7 @@ class ExplorerView(APIView):
         ser = FilterSerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
         f = ser.validated_data
-        held_ids = {
-            h.instrument_id
-            for h in load_holdings(request.user)["holdings"]
-            if h.instrument_id and h.asset_class != "CASH"
-        }
+        held_ids = _held_instrument_ids(request.user) if f["universe"] == "portfolio" else set()
         instruments = Instrument.objects.filter(currency=f["currency"])
         instruments = (
             instruments.filter(id__in=held_ids)
@@ -58,12 +53,14 @@ class ExplorerView(APIView):
             .select_related("instrument")
             .order_by("value", "instrument_id")
         )
+        idents = list(idents)
+        histories = _bulk_bars_for({ident.instrument_id for ident in idents}, DEFAULT_DAYS)
         seen, rows, unavailable = set(), [], []
         for ident in idents:
             if ident.instrument_id in seen:
                 continue
             seen.add(ident.instrument_id)
-            bars, provider = _bars_for(ident.instrument_id, DEFAULT_DAYS)
+            bars, provider = histories[ident.instrument_id]
             if len(bars) < 2:
                 unavailable.append(
                     {

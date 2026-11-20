@@ -1,6 +1,7 @@
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
+from django.db.models import Count, Max, Q
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -8,11 +9,13 @@ from rest_framework.views import APIView
 
 from modules.instruments.models import InstrumentIdentifier
 from modules.intelligence.holdings import load_holdings
+from modules.portfolio.models import TaxLot
 from modules.pricing.history_models import DailyClose
 from modules.valuations.fair_value import plain
 
 from . import indicators as ind
 from . import trade_plan
+from .models import TechnicalClose
 from .signals import DEFAULTS, SignalError, analyze
 
 MAX_DAYS, DEFAULT_DAYS = 1000, 300
@@ -20,9 +23,17 @@ STALE_DAYS = 4  # un fin de semana largo ya es normal; más que eso se marca
 DELAY_NOTE = "Cierres diarios de un proveedor gratuito: no son tiempo real y pueden tener retraso."
 
 
-def _bars_for(instrument_id, days):
-    """Velas diarias del instrumento (proveedor con más datos), ascendentes y acotadas a las últimas `days`."""
-    rows = list(DailyClose.objects.filter(instrument_id=instrument_id).order_by("date"))
+def _held_instrument_ids(user):
+    """Mismos pares del libro que _positions_for, sin cargar valoraciones para un selector."""
+    return set(
+        TaxLot.objects.filter(account__owner=user)
+        .exclude(instrument__asset_class="CASH")
+        .values_list("instrument_id", flat=True)
+        .distinct()
+    )
+
+
+def _bars_from_rows(rows, days):
     if not rows:
         return [], None
     by_provider = defaultdict(list)
@@ -42,6 +53,25 @@ def _bars_for(instrument_id, days):
         }
         for r in chosen
     ], provider
+
+
+def _bars_for(instrument_id, days):
+    """Velas diarias del instrumento, con preferencia por el historial aislado de Técnico."""
+    rows = list(TechnicalClose.objects.filter(instrument_id=instrument_id).order_by("date"))
+    if not rows:
+        rows = list(DailyClose.objects.filter(instrument_id=instrument_id).order_by("date"))
+    return _bars_from_rows(rows, days)
+
+
+def _bulk_bars_for(instrument_ids, days):
+    ids = list(instrument_ids)
+    technical, legacy = defaultdict(list), defaultdict(list)
+    for row in TechnicalClose.objects.filter(instrument_id__in=ids).order_by("instrument_id", "date"):
+        technical[row.instrument_id].append(row)
+    legacy_ids = set(ids) - technical.keys()
+    for row in DailyClose.objects.filter(instrument_id__in=legacy_ids).order_by("instrument_id", "date"):
+        legacy[row.instrument_id].append(row)
+    return {ident: _bars_from_rows(technical.get(ident) or legacy.get(ident, []), days) for ident in ids}
 
 
 def _freshness(bars, provider):
@@ -64,29 +94,42 @@ def _line(dates, values, digits=4):
     ]
 
 
-def _find_instrument(ticker):
-    ident = (
-        InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker)
-        .select_related("instrument")
-        .first()
+def _find_instrument(ticker, instrument_id=None):
+    idents = InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker).select_related(
+        "instrument"
     )
-    return ident.instrument if ident else None
+    if instrument_id is not None:
+        if not str(instrument_id).isdigit():
+            raise serializers.ValidationError({"instrument_id": "Identificador inválido."})
+        idents = idents.filter(instrument_id=instrument_id)
+    ids = list(idents.order_by().values_list("instrument_id", flat=True).distinct()[:2])
+    if len(ids) > 1:
+        raise serializers.ValidationError(
+            {"ticker": "El símbolo corresponde a varias emisoras; indica el instrumento."}
+        )
+    return idents.filter(instrument_id=ids[0]).first().instrument if ids else None
 
 
 class SymbolsView(APIView):
     def get(self, request):
-        held = {h.instrument_id for h in load_holdings(request.user)["holdings"] if h.asset_class != "CASH"}
+        held = _held_instrument_ids(request.user)
+
+        def summaries(model):
+            return {
+                row["instrument_id"]: row
+                for row in model.objects.values("instrument_id").annotate(
+                    bars=Count("id"), last_bar=Max("date"), has_ohlc=Count("id", filter=Q(high__isnull=False))
+                )
+            }
+
+        legacy, technical = summaries(DailyClose), summaries(TechnicalClose)
         out = []
         for ident in (
             InstrumentIdentifier.objects.filter(kind="TICKER").select_related("instrument").order_by("value")
         ):
-            rows = DailyClose.objects.filter(instrument=ident.instrument)
-            n = rows.count()
-            if n == 0 and ident.instrument_id not in held:
-                continue
-            last = rows.order_by("-date").first()
-            out.append({"instrument_id": ident.instrument_id, "currency": ident.instrument.currency, "ticker": ident.value, "name": ident.instrument.name, "held": ident.instrument_id in held, "bars": n,
-                        "last_bar": last.date if last else None, "has_ohlc": rows.exclude(high=None).exists()})  # fmt: skip
+            data = technical.get(ident.instrument_id) or legacy.get(ident.instrument_id) or {}
+            out.append({"instrument_id": ident.instrument_id, "currency": ident.instrument.currency, "market": ident.instrument.market, "ticker": ident.value, "name": ident.instrument.name, "held": ident.instrument_id in held, "bars": data.get("bars", 0),
+                        "last_bar": data.get("last_bar"), "has_ohlc": bool(data.get("has_ohlc"))})  # fmt: skip
         return Response(plain(out))
 
 
@@ -103,20 +146,7 @@ class AnalyzeView(APIView):
             raise serializers.ValidationError({"days": "Entero."}) from None
         if not 30 <= days <= MAX_DAYS:
             raise serializers.ValidationError({"days": f"Debe estar entre 30 y {MAX_DAYS}."})
-        instrument_id = request.query_params.get("instrument_id")
-        if instrument_id:
-            ident = (
-                InstrumentIdentifier.objects.filter(
-                    instrument_id=instrument_id, kind="TICKER", value__iexact=ticker
-                )
-                .select_related("instrument")
-                .first()
-                if str(instrument_id).isdigit()
-                else None
-            )
-            instrument = ident.instrument if ident else None
-        else:
-            instrument = _find_instrument(ticker)
+        instrument = _find_instrument(ticker, request.query_params.get("instrument_id"))
         if instrument is None:
             raise serializers.ValidationError({"ticker": "Emisora no encontrada."})
         bars, provider = _bars_for(instrument.id, days)

@@ -11,6 +11,7 @@ from modules.pricing.providers import ProviderError, YahooProvider
 from modules.valuations.fair_value import plain
 
 from . import intraday
+from .api import _find_instrument
 
 DELAY_NOTE = (
     "Velas de 5 minutos de una fuente gratuita no oficial (Yahoo Finance): pueden retrasarse, faltar o cambiar sin "
@@ -58,8 +59,19 @@ class IntradayView(APIView):
         ticker = str(request.query_params.get("ticker", "")).strip().upper()
         if not ticker:
             raise serializers.ValidationError({"ticker": "Indica un ticker."})
-        if not InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker).exists():
+        instrument = _find_instrument(ticker, request.query_params.get("instrument_id"))
+        if instrument is None:
             raise serializers.ValidationError({"ticker": "Emisora no encontrada en tu catálogo."})
+        if (
+            InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker)
+            .values("instrument_id")
+            .distinct()
+            .count()
+            > 1
+        ):
+            raise serializers.ValidationError(
+                {"ticker": "No se puede confirmar el mercado intradía para este símbolo ambiguo."}
+            )
         range_ = request.query_params.get("range", "1d")
         try:
             or_minutes = int(request.query_params.get("or_minutes", 15))

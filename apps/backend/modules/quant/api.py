@@ -1,17 +1,22 @@
 import math
 from dataclasses import asdict
 
+from django.db import transaction
+from django.db.models import Count
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from modules.instruments.models import Instrument
+from modules.pricing.history_models import DailyClose
+from modules.technical.models import TechnicalClose
 from modules.valuations.fair_value import plain
 
 from . import promotion, worker
 from .features import FEATURES
-from .models import QuantExperiment
+from .models import QuantExperiment, QuantUniverseMember
 from .runner import (
     ALL_MODELS,
     DEFAULT_FOLDS,
@@ -32,6 +37,50 @@ DISCLAIMER = (
 
 class QuantThrottle(UserRateThrottle):
     scope = "quant"
+
+
+class UniverseMemberView(APIView):
+    """Incorporación explícita al laboratorio; nunca modifica experimentos existentes."""
+
+    def post(self, request):
+        raw = str(request.data.get("instrument_id", ""))
+        if not raw.isdigit():
+            raise serializers.ValidationError({"instrument_id": "Indica un instrumento válido."})
+        instrument = Instrument.objects.filter(pk=raw).first()
+        if instrument is None:
+            raise serializers.ValidationError({"instrument_id": "Instrumento no encontrado."})
+        if QuantUniverseMember.objects.filter(instrument=instrument).exists():
+            return Response({"instrument_id": instrument.id, "added": False})
+        legacy = DailyClose.objects.filter(instrument=instrument)
+        technical = TechnicalClose.objects.filter(instrument=instrument)
+        source = legacy if legacy.exists() else technical
+        counts = source.values("provider").annotate(n=Count("id"))
+        if not any(row["n"] >= MIN_BARS for row in counts):
+            raise serializers.ValidationError(
+                {"detail": f"El instrumento necesita al menos {MIN_BARS} cierres de un proveedor."}
+            )
+        with transaction.atomic():
+            if source.model is TechnicalClose:
+                fields = (
+                    "date",
+                    "close",
+                    "open",
+                    "high",
+                    "low",
+                    "volume",
+                    "adj_close",
+                    "currency",
+                    "provider",
+                )
+                DailyClose.objects.bulk_create(
+                    [
+                        DailyClose(instrument=instrument, **{f: getattr(row, f) for f in fields})
+                        for row in source
+                    ],
+                    ignore_conflicts=True,
+                )
+            _, created = QuantUniverseMember.objects.get_or_create(instrument=instrument)
+        return Response({"instrument_id": instrument.id, "added": created})
 
 
 def _summary(e: QuantExperiment) -> dict:
@@ -67,7 +116,9 @@ def _num(data, key, default, lo, hi, integer=False):
 
 class OverviewView(APIView):
     def get(self, request):
-        series, tickers = load_series()
+        series, tickers = load_series(
+            instrument_ids=list(QuantUniverseMember.objects.values_list("instrument_id", flat=True))
+        )
         last = max((b["date"] for bars in series.values() for b in bars), default=None)
         return Response(
             plain(

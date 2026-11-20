@@ -2,6 +2,15 @@ from django.conf import settings
 from django.db import models
 
 
+class QuantUniverseMember(models.Model):
+    """Pertenencia explícita al universo predeterminado del laboratorio."""
+
+    instrument = models.OneToOneField(
+        "instruments.Instrument", on_delete=models.PROTECT, related_name="quant_membership"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class QuantExperiment(models.Model):
     """Experimento del laboratorio cuantitativo, INMUTABLE: guarda configuración, huella de los datos, métricas,
     veredicto de promoción y puntajes más recientes. Para repetirlo se crea otro; así queda el historial completo de

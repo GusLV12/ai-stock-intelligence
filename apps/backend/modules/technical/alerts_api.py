@@ -9,6 +9,7 @@ from modules.instruments.models import InstrumentIdentifier
 from modules.valuations.fair_value import plain
 
 from .alerts import MAX_ACTIVE_PER_USER, SIGNAL_IDS, evaluate
+from .api import _find_instrument
 from .models import PriceAlert
 
 
@@ -39,12 +40,8 @@ class AlertsView(APIView):
     def post(self, request):
         data = request.data if isinstance(request.data, dict) else {}
         ticker = str(data.get("ticker", "")).strip().upper()
-        ident = (
-            InstrumentIdentifier.objects.filter(kind="TICKER", value__iexact=ticker)
-            .select_related("instrument")
-            .first()
-        )
-        if ident is None:
+        instrument = _find_instrument(ticker, data.get("instrument_id"))
+        if instrument is None:
             raise serializers.ValidationError({"ticker": "Emisora no encontrada."})
         kind = data.get("kind")
         if kind not in PriceAlert.Kind.values:
@@ -70,7 +67,7 @@ class AlertsView(APIView):
         note = str(data.get("note", ""))[:200]
         a = PriceAlert.objects.create(
             user=request.user,
-            instrument=ident.instrument,
+            instrument=instrument,
             kind=kind,
             threshold=threshold,
             signal_id=signal_id,

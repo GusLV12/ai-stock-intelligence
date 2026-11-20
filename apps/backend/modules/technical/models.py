@@ -41,3 +41,52 @@ class ChartDrawing(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class WatchlistEntry(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="watchlist")
+    instrument = models.ForeignKey(Instrument, on_delete=models.CASCADE, related_name="watchers")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "instrument"], name="unique_watchlist_user_instrument")
+        ]
+
+
+class TechnicalClose(models.Model):
+    """Cierre aislado de la descarga manual de la terminal."""
+
+    instrument = models.ForeignKey(Instrument, on_delete=models.PROTECT, related_name="technical_closes")
+    date = models.DateField()
+    close = models.DecimalField(max_digits=38, decimal_places=10)
+    open = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    high = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    low = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    volume = models.BigIntegerField(null=True, blank=True)
+    adj_close = models.DecimalField(max_digits=38, decimal_places=10, null=True, blank=True)
+    currency = models.CharField(max_length=3)
+    provider = models.CharField(max_length=40)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["instrument_id", "date"]
+        constraints = [
+            models.UniqueConstraint(fields=["instrument", "date", "provider"], name="uniq_technical_close"),
+            models.CheckConstraint(condition=models.Q(close__gt=0), name="technical_close_positive"),
+        ]
+        indexes = [models.Index(fields=["instrument", "date"])]
+
+
+class MarketIdentity(models.Model):
+    """Identidad confirmada para vincular bolsas equivalentes entre proveedores."""
+
+    instrument = models.ForeignKey(Instrument, on_delete=models.PROTECT, related_name="market_identities")
+    symbol = models.CharField(max_length=30)
+    market = models.CharField(max_length=30)
+    currency = models.CharField(max_length=3)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["symbol", "market", "currency"], name="unique_market_identity")
+        ]

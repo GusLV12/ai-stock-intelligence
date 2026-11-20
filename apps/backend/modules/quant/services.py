@@ -7,7 +7,7 @@ from modules.instruments.models import InstrumentIdentifier
 from modules.pricing.history_models import DailyClose
 
 from .features import MIN_HISTORY
-from .models import QuantExperiment
+from .models import QuantExperiment, QuantUniverseMember
 from .runner import QUANT_VERSION, panel_hash, run_experiment
 
 MIN_BARS = MIN_HISTORY + 10
@@ -23,9 +23,9 @@ def load_series(as_of: date | None = None, instrument_ids: list[int] | None = No
     """Velas por instrumento (proveedor con más datos, para no mezclar ajustes distintos), hasta `as_of`.
     `close` es el cierre ajustado por dividendos cuando el instrumento lo tiene completo (retorno total).
     Devuelve (series, tickers). Solo instrumentos con historial suficiente."""
-    qs = DailyClose.objects.order_by("instrument_id", "date")
-    if instrument_ids is not None:
-        qs = qs.filter(instrument_id__in=instrument_ids)
+    if instrument_ids is None:
+        instrument_ids = QuantUniverseMember.objects.values_list("instrument_id", flat=True)
+    qs = DailyClose.objects.filter(instrument_id__in=instrument_ids).order_by("instrument_id", "date")
     if as_of is not None:
         qs = qs.filter(date__lte=as_of)
     by_inst: dict = defaultdict(lambda: defaultdict(list))
@@ -58,7 +58,10 @@ def load_series(as_of: date | None = None, instrument_ids: list[int] | None = No
 
 
 def create_experiment(user, name: str, config: dict) -> QuantExperiment:
-    series, tickers = load_series(instrument_ids=config.get("instrument_ids"))
+    instrument_ids = config.get("instrument_ids")
+    if instrument_ids is None:
+        instrument_ids = list(QuantUniverseMember.objects.values_list("instrument_id", flat=True))
+    series, tickers = load_series(instrument_ids=instrument_ids)
     if not series:
         raise ValueError(
             f"Ningún instrumento tiene historial suficiente (≥ {MIN_BARS} cierres). Corre refresh_price_history con rango 2y o 5y."

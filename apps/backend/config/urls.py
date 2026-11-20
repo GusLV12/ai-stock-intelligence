@@ -37,12 +37,24 @@ from modules.portfolio.api import (
 )
 from modules.portfolio.dashboard import DashboardView
 from modules.pricing.api import FxView, PricesView
-from modules.quant.api import ExperimentDetailView, ExperimentsView, OverviewView, VerifyView
+from modules.quant.api import (
+    ExperimentDetailView,
+    ExperimentsView,
+    OverviewView,
+    UniverseMemberView,
+    VerifyView,
+)
 from modules.technical.alerts_api import AlertsView, CancelAlertView, EvaluateAlertsView
 from modules.technical.api import AnalyzeView, ScanView, SymbolsView, TradePlanView
 from modules.technical.explorer_api import DrawingDetailView, DrawingsView, ExplorerView
 from modules.technical.intraday_api import IntradayView
 from modules.technical.liquidity_api import LiquidityView, PortfolioLiquidityView
+from modules.technical.search_api import (
+    LoadMarketHistoryView,
+    MarketSearchView,
+    WatchlistDetailView,
+    WatchlistView,
+)
 from modules.valuations.api import DcfView, FairValueDetailView, FairValueView, ReverseDcfView
 
 router = SimpleRouter(trailing_slash=False)
@@ -70,6 +82,14 @@ urlpatterns = [
     path("api/v1/portfolio/theses/<int:pk>", ThesisDetailView.as_view(), name="thesis-detail"),
     path("api/v1/portfolio/theses/<int:pk>/follow-ups", FollowUpView.as_view(), name="thesis-follow-ups"),
     path("api/v1/technical/symbols", SymbolsView.as_view(), name="technical-symbols"),
+    path("api/v1/technical/market-search", MarketSearchView.as_view(), name="technical-market-search"),
+    path("api/v1/technical/market-history", LoadMarketHistoryView.as_view(), name="technical-market-history"),
+    path("api/v1/technical/watchlist", WatchlistView.as_view(), name="technical-watchlist"),
+    path(
+        "api/v1/technical/watchlist/<int:pk>",
+        WatchlistDetailView.as_view(),
+        name="technical-watchlist-detail",
+    ),
     path("api/v1/technical/analyze", AnalyzeView.as_view(), name="technical-analyze"),
     path("api/v1/technical/intraday", IntradayView.as_view(), name="technical-intraday"),
     path("api/v1/technical/liquidity", LiquidityView.as_view(), name="technical-liquidity"),
@@ -94,6 +114,7 @@ urlpatterns = [
     path("api/v1/paper/accounts/<int:pk>/journal", paper_api.JournalView.as_view(), name="paper-journal"),
     path("api/v1/paper/accounts/<int:pk>/proposal", paper_api.ProposalView.as_view(), name="paper-proposal"),
     path("api/v1/quant/overview", OverviewView.as_view(), name="quant-overview"),
+    path("api/v1/quant/universe", UniverseMemberView.as_view(), name="quant-universe-member"),
     path("api/v1/quant/experiments", ExperimentsView.as_view(), name="quant-experiments"),
     path("api/v1/quant/experiments/<int:pk>", ExperimentDetailView.as_view(), name="quant-experiment"),
     path("api/v1/quant/experiments/<int:pk>/verify", VerifyView.as_view(), name="quant-verify"),
