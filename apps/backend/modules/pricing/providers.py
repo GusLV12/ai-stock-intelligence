@@ -33,6 +33,25 @@ class ProviderError(Exception):
         self.transient = transient
 
 
+class ProviderRateLimit(ProviderError):
+    """Cuota local agotada, con tiempo acotado hasta el siguiente intervalo."""
+
+    def __init__(self, message: str, retry_after: int):
+        super().__init__(message, transient=True)
+        self.retry_after = retry_after
+
+
+def reserve_provider(provider: str):
+    from modules.core.provider_quota import QuotaUnavailable, reserve
+
+    try:
+        reserve(provider)
+    except QuotaUnavailable as exc:
+        if exc.retry_after:
+            raise ProviderRateLimit(str(exc), exc.retry_after) from None
+        raise ProviderError(str(exc), transient=True) from None
+
+
 def http_get_json(url: str, headers: dict | None = None, timeout: int = 15) -> dict:
     if not url.startswith("https://"):
         raise ProviderError("Solo se permiten conexiones HTTPS.")
@@ -93,6 +112,8 @@ class TwelveDataProvider:
         now = self._clock()
         if self._last is not None and now - self._last < self._interval:
             self._sleep(self._interval - (now - self._last))
+        if self._http is http_get_json:
+            reserve_provider(self.name)
         self._last = self._clock()
 
     def fetch_quote(self, symbol: str) -> Quote:
@@ -171,6 +192,8 @@ class YahooProvider:
         now = self._clock()
         if self._last is not None and now - self._last < self._pause:
             self._sleep(self._pause - (now - self._last))
+        if self._http is http_get_json:
+            reserve_provider(self.name)
         self._last = self._clock()
 
     def _meta(self, symbol: str) -> dict:

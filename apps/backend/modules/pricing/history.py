@@ -1,13 +1,17 @@
 """Descarga e idempotencia del historial de cierres diarios de las emisoras con posición."""
 
+import time
+
 from .history_models import DailyClose
-from .providers import ProviderError
+from .providers import ProviderError, ProviderRateLimit
 from .refresh import held_tickers
 
 CONSECUTIVE_FAILURES = 2
 
 
-def refresh_history(provider, range_: str = "1y", tickers: dict | None = None) -> dict:
+def refresh_history(
+    provider, range_: str = "1y", tickers: dict | None = None, *, close_model=DailyClose
+) -> dict:
     """`tickers` ({ticker: instrumento}) sustituye a las emisoras con posición (p. ej. el universo de investigación).
     Guarda cierres nuevos (nunca duplica ni sobrescribe el cierre real). Un fallo individual no detiene el resto; dos fallos
     transitorios seguidos (proveedor caído) abortan para no seguir insistiendo."""
@@ -15,7 +19,12 @@ def refresh_history(provider, range_: str = "1y", tickers: dict | None = None) -
     strikes = 0
     for ticker, instrument in sorted((held_tickers() if tickers is None else tickers).items()):
         try:
-            data = provider.fetch_history(ticker, range_)
+            try:
+                data = provider.fetch_history(ticker, range_)
+            except ProviderRateLimit as exc:
+                # En lotes se espera una sola vez; el trabajo sigue desde la emisora actual.
+                time.sleep(exc.retry_after + 1)
+                data = provider.fetch_history(ticker, range_)
             if data["currency"] != instrument.currency:
                 raise ProviderError(f"moneda {data['currency']} distinta de {instrument.currency}")
         except ProviderError as exc:
@@ -27,7 +36,7 @@ def refresh_history(provider, range_: str = "1y", tickers: dict | None = None) -
             continue
         strikes = 0
         existing = {
-            r.date: r for r in DailyClose.objects.filter(instrument=instrument, provider=provider.name)
+            r.date: r for r in close_model.objects.filter(instrument=instrument, provider=provider.name)
         }
         full = {b["date"]: b for b in data.get("ohlcv", [])}
         new, fill = [], []
@@ -36,7 +45,7 @@ def refresh_history(provider, range_: str = "1y", tickers: dict | None = None) -
             row = existing.get(day)
             if row is None:
                 new.append(
-                    DailyClose(
+                    close_model(
                         instrument=instrument,
                         date=day,
                         close=close,
@@ -62,9 +71,9 @@ def refresh_history(provider, range_: str = "1y", tickers: dict | None = None) -
                 touched = True
             if touched:
                 fill.append(row)
-        DailyClose.objects.bulk_create(new)
+        close_model.objects.bulk_create(new)
         if fill:
-            DailyClose.objects.bulk_update(fill, ["open", "high", "low", "volume", "adj_close"])
+            close_model.objects.bulk_update(fill, ["open", "high", "low", "volume", "adj_close"])
         if new or fill:
             result["saved"][ticker] = len(new) + len(fill)
         else:
