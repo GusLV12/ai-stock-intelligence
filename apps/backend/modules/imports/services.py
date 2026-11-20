@@ -20,7 +20,17 @@ from modules.portfolio.services import record_buy, record_sell
 
 from .models import ImportBatch, ImportRow, ManualImportMatch
 
-COLUMNS = ["operation", "ticker", "quantity", "price", "fees", "currency", "executed_at", "broker_reference"]
+COLUMNS = [
+    "operation",
+    "ticker",
+    "quantity",
+    "price",
+    "fees",
+    "currency",
+    "executed_at",
+    "broker_reference",
+    "origin",
+]
 REQUIRED = ["operation", "ticker", "quantity", "price", "executed_at"]
 ADAPTER_VERSION = "1"
 
@@ -78,6 +88,11 @@ def _normalize(raw: dict, instrument_lookup) -> tuple[dict, Instrument]:
     if executed.tzinfo is None:
         raise ValueError("executed_at: debe incluir zona horaria (ej. 2026-01-05T15:00:00Z)")
     currency = (raw.get("currency") or instrument.currency).strip().upper()
+    origin = (raw.get("origin") or "IMPORT").strip().upper()
+    if origin not in ("IMPORT", "MANUAL", "OPENING"):
+        raise ValueError("origin: debe ser IMPORT, MANUAL u OPENING")
+    if origin == "OPENING" and operation != "BUY":
+        raise ValueError("origin: un saldo de apertura debe ser una compra")
     normalized = {
         "operation": operation,
         "instrument_id": instrument.id,
@@ -87,13 +102,19 @@ def _normalize(raw: dict, instrument_lookup) -> tuple[dict, Instrument]:
         "currency": currency,
         "executed_at": executed.astimezone(UTC).isoformat(),
         "broker_reference": (raw.get("broker_reference") or "").strip(),
+        "origin": origin,
     }  # fmt: skip
     return normalized, instrument
 
 
-def preview_import(account: InvestmentAccount, content: bytes, filename: str = "") -> ImportBatch:
+def preview_import(
+    account: InvestmentAccount, content: bytes, filename: str = "", *, resume_preview=False
+) -> ImportBatch:
     sha = hashlib.sha256(content).hexdigest()
-    if ImportBatch.objects.filter(account=account, file_sha256=sha).exists():
+    existing = ImportBatch.objects.filter(account=account, file_sha256=sha).first()
+    if existing and resume_preview and existing.status == ImportBatch.Status.PREVIEW:
+        return existing
+    if existing:
         raise ImportError_("Este archivo ya fue cargado para esta cuenta.")
     try:
         text = content.decode("utf-8-sig")
@@ -201,6 +222,17 @@ def confirm_import(batch: ImportBatch) -> dict:
     for row in todo:
         n = row.normalized
         instrument = Instrument.objects.get(pk=n["instrument_id"])
+        # Otro lote pudo confirmarse desde la vista previa: comprobar antes de crear.
+        if row.status == S.VALID:
+            current, errors = _classify(batch.account, instrument, n, row.fingerprint)
+            if current == S.DUPLICATE:
+                row.status, row.errors = current, errors
+                row.save(update_fields=["status", "errors"])
+                continue
+            if current == S.DISCREPANCY:
+                raise ImportError_(f"La fila {row.row_number} cambió desde la vista previa: {errors[0]}")
+            if current == S.MATCH_MANUAL:
+                row.status = current
         if row.status == S.MATCH_MANUAL:
             manual = _find_manual_match(batch.account, instrument, n)
             if manual is None:  # ya fue vinculada por otro lote: se trata como duplicada
@@ -218,7 +250,7 @@ def confirm_import(batch: ImportBatch) -> dict:
             account=batch.account, instrument=instrument, quantity=Decimal(n["quantity"]),
             price=Decimal(n["price"]), fees=Decimal(n["fees"]), currency=n["currency"],
             executed_at=datetime.fromisoformat(n["executed_at"]),
-            broker_reference=n["broker_reference"], origin="IMPORT",
+            broker_reference=n["broker_reference"], origin="OPENING" if n.get("origin") == "OPENING" else "IMPORT",
         )  # fmt: skip
         row.status, row.transaction = S.CONFIRMED, tx
         row.save(update_fields=["status", "transaction"])

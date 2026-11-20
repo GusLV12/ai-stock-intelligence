@@ -41,7 +41,13 @@ def _batch_data(batch: ImportBatch, with_rows=True):
         data["summary"][r.status] = data["summary"].get(r.status, 0) + 1
     if with_rows:
         data["rows"] = [
-            {"row": r.row_number, "status": r.status, "errors": r.errors, "data": r.normalized or r.raw}
+            {
+                "row": r.row_number,
+                "ticker": r.raw.get("ticker", ""),
+                "status": r.status,
+                "errors": r.errors,
+                "data": r.normalized or r.raw,
+            }
             for r in rows
         ]
     return data
@@ -58,7 +64,8 @@ class ImportsView(APIView):
         if upload.size > MAX_UPLOAD_BYTES:
             raise serializers.ValidationError({"file": "El archivo supera 5 MB."})
         try:
-            batch = preview_import(acc, upload.read(), upload.name or "")
+            resume = request.data.get("resume_preview") == "true"
+            batch = preview_import(acc, upload.read(), upload.name or "", resume_preview=resume)
         except ImportError_ as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
         return Response(_batch_data(batch), status=status.HTTP_201_CREATED)

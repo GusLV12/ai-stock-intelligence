@@ -40,6 +40,18 @@ def _check_common(account: InvestmentAccount, instrument: Instrument, currency: 
         raise LedgerError("La moneda de la operación no coincide con la del instrumento.")
 
 
+def _check_later_sales(account: InvestmentAccount, instrument: Instrument, executed_at: datetime):
+    # Una operación anterior a una venta ya asignada obligaría a reconstruir FIFO.
+    if Transaction.objects.filter(
+        account=account,
+        instrument=instrument,
+        operation=Transaction.Operation.SELL,
+        status=Transaction.Status.CONFIRMED,
+        executed_at__gt=executed_at,
+    ).exists():
+        raise LedgerError("Hay ventas posteriores; no se puede insertar esta operación sin reconstruir FIFO.")
+
+
 @db_transaction.atomic
 def record_buy(
     *,
@@ -58,6 +70,7 @@ def record_buy(
     _check_common(account, instrument, currency, fees)
     if price < 0:
         raise LedgerError("El precio no puede ser negativo.")
+    _check_later_sales(account, instrument, executed_at)
     tx = Transaction.objects.create(
         account=account,
         instrument=instrument,
@@ -101,10 +114,13 @@ def record_sell(
     _check_common(account, instrument, currency, fees)
     if price < 0:
         raise LedgerError("El precio no puede ser negativo.")
+    _check_later_sales(account, instrument, executed_at)
 
     lots = list(
         TaxLot.objects.select_for_update()
-        .filter(account=account, instrument=instrument, quantity_remaining__gt=0)
+        .filter(
+            account=account, instrument=instrument, quantity_remaining__gt=0, acquired_at__lte=executed_at
+        )
         .order_by("acquired_at", "id")
     )
     available = sum((lot.quantity_remaining for lot in lots), ZERO)

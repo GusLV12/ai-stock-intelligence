@@ -34,6 +34,7 @@ def _rows(account: InvestmentAccount):
             "currency": t.currency,
             "executed_at": t.executed_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             "broker_reference": t.broker_reference,
+            "origin": t.origin,
         }
 
 
