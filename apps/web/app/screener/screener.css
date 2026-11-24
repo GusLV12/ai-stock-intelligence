@@ -1,0 +1,28 @@
+.screener-page { max-width: 1900px; }
+.screener-layout { display: grid; grid-template-columns: minmax(290px, 370px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.screener-sidebar { padding: 0; overflow: hidden; }
+.screener-data, .screener-filters { padding: 20px; }
+.screener-data { border-bottom: 1px solid var(--line); }
+.screener-data h2, .screener-results h2, .screener-initial h2 { margin: 0; }
+.screener-data p { font-size: var(--fs-sm); line-height: 1.5; }
+.screener-data .row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.screener-upload { position: relative; overflow: hidden; cursor: pointer; }
+.screener-file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.screener-upload:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.screener-filters fieldset { display: flex; flex-direction: column; padding: 0; border: 0; gap: 14px; }
+.screener-filters legend { padding: 0; margin-bottom: 14px; font-size: 1.05rem; }
+.screener-filters .field input { width: 100%; }
+.screener-filters button[type="submit"] { width: 100%; align-self: stretch; }
+.screener-main { min-width: 0; }
+.screener-initial { min-height: 180px; }
+.screener-results { min-width: 0; }
+.screener-stats { grid-template-columns: repeat(5, minmax(125px, 1fr)); gap: 10px; }
+.screener-stats .stat { min-width: 0; overflow-wrap: anywhere; }
+.screener-results-actions { justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.screener-results .tablewrap { width: 100%; }
+.screener-results table { min-width: 1080px; }
+.screener-status { display: inline-flex; border-radius: 999px; padding: 3px 9px; font-size: var(--fs-xs); font-weight: 650; white-space: nowrap; }
+.screener-status.is-passed { color: #60dca9; background: rgba(31, 160, 111, .14); }
+.screener-status.is-failed { color: #ff8c99; background: rgba(218, 68, 90, .14); }
+@media (max-width: 1200px) { .screener-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+@media (max-width: 850px) { .screener-layout { grid-template-columns: 1fr; } .screener-data, .screener-filters { padding: 16px; } }

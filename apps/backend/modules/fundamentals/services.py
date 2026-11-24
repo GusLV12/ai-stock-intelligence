@@ -4,8 +4,10 @@ import csv
 import io
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from zipfile import ZipFile
 
 from django.db import transaction
+from openpyxl import load_workbook
 
 from modules.instruments.models import Instrument, InstrumentIdentifier
 
@@ -167,6 +169,54 @@ def parse_csv(content: bytes) -> list[dict]:
     if missing:
         raise FundamentalsError("Columnas obligatorias ausentes: " + ", ".join(missing))
     return [{(k or "").strip(): (v or "") for k, v in r.items()} for r in reader]
+
+
+def parse_xlsx(content: bytes) -> list[dict]:
+    """Lee la primera hoja canónica; no evalúa ni acepta fórmulas."""
+    try:
+        with ZipFile(io.BytesIO(content)) as archive:
+            if sum(item.file_size for item in archive.infolist()) > 20 * 1024 * 1024:
+                raise FundamentalsError("El contenido descomprimido del XLSX supera 20 MB.")
+        workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=False, keep_links=False)
+        try:
+            sheet = workbook.worksheets[0]
+            if sheet.max_column and sheet.max_column > 64:
+                raise FundamentalsError("El archivo tiene demasiadas columnas.")
+            iterator = sheet.iter_rows()
+            header_cells = next(iterator, ())
+            headers = [str(cell.value or "").strip() for cell in header_cells]
+            if any(cell.data_type == "f" for cell in header_cells):
+                raise FundamentalsError("El XLSX no admite fórmulas.")
+            if len([h for h in headers if h]) != len({h for h in headers if h}):
+                raise FundamentalsError("Hay columnas repetidas en el XLSX.")
+            missing = [name for name in ("ticker", "fiscal_year", "period_end") if name not in headers]
+            if missing:
+                raise FundamentalsError("Columnas obligatorias ausentes: " + ", ".join(missing))
+            rows = []
+            for cells in iterator:
+                if all(cell.value is None for cell in cells):
+                    continue
+                if len(rows) >= MAX_ROWS:
+                    raise FundamentalsError(f"Máximo {MAX_ROWS} filas por importación.")
+                if any(cell.data_type in ("f", "e") for cell in cells):
+                    raise FundamentalsError("El XLSX contiene fórmulas o errores de celda; usa valores.")
+                row = {}
+                for name, cell in zip(headers, cells):
+                    if name:
+                        value = cell.value
+                        if name in ("period_end", "published_at") and hasattr(value, "date"):
+                            value = value.date().isoformat()
+                        elif isinstance(value, date):
+                            value = value.isoformat()
+                        row[name] = value
+                rows.append(row)
+            return rows
+        finally:
+            workbook.close()
+    except FundamentalsError:
+        raise
+    except Exception as exc:  # openpyxl y ZIP usan distintas excepciones para archivos dañados
+        raise FundamentalsError("No se pudo leer el XLSX; usa la plantilla de estados financieros.") from exc
 
 
 def latest_years(instrument: Instrument, as_of: date | None = None) -> list[FinancialYear]:

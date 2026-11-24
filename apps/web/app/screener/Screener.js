@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, apiDownloadGet, apiUpload, ApiError, pctToDecimal as pct } from "../lib/api";
+import { MotionPanel } from "../lib/Motion";
+import "./screener.css";
 
 const num = (v) => (String(v ?? "").trim() === "" ? undefined : String(v).trim().replace(",", "."));
 const fmtPct = (v) => (v == null ? "—" : `${(Number(v) * 100).toFixed(1)}%`);
@@ -86,9 +88,17 @@ export default function Screener() {
     e.target.value = "";
   }
 
-  async function exportCsv() {
+  async function downloadXlsxTemplate() {
     try {
-      downloadBlob(await apiDownloadGet(`/api/v1/screeners/runs/${state.data.id}?format=csv`), `screener-${state.data.id}.csv`);
+      downloadBlob(await apiDownloadGet("/api/v1/fundamentals/import?format=xlsx"), "plantilla-estados-financieros.xlsx");
+    } catch (err) {
+      setUpload({ status: "error", message: err.message });
+    }
+  }
+
+  async function exportResults(format) {
+    try {
+      downloadBlob(await apiDownloadGet(`/api/v1/screeners/runs/${state.data.id}?format=${format}`), `screener-${state.data.id}.${format}`);
     } catch (err) {
       setState({ status: "error", message: err.message });
     }
@@ -98,7 +108,7 @@ export default function Screener() {
   const rows = data ? (showAll ? data.rows : data.rows.filter((r) => r.passed)) : [];
 
   return (
-    <main className="wrap">
+    <main className="wrap screener-page">
       <header className="top">
         <div>
           <h1>Screener</h1>
@@ -110,24 +120,27 @@ export default function Screener() {
         </nav>
       </header>
 
-      <section className="card stack" aria-label="Datos financieros">
+      <div className="screener-layout">
+      <div className="screener-sidebar card">
+      <section className="screener-data stack" aria-label="Datos financieros">
         <h2>Datos financieros</h2>
-        <p className="muted">El screener usa estados financieros anuales: súbelos aquí (CSV) o descárgalos de la SEC con el comando ingest_sec_financials (ver docs/runbooks/sec-edgar.md). Cada fila indica su fuente. Un dato que falte queda como «sin dato», nunca como cero.</p>
+        <p className="muted">Carga estados financieros anuales en CSV o Excel (.xlsx) con las columnas de la plantilla. El XLSX de posiciones de GBM no contiene estos estados. También puedes obtener datos de la SEC con ingest_sec_financials (ver docs/runbooks/sec-edgar.md). Los datos faltantes no se convierten en cero.</p>
         <div className="row-actions">
-          <label className="btn ghost" style={{ cursor: "pointer" }}>
-            Subir CSV
-            <input type="file" accept=".csv,text/csv" onChange={onUpload} hidden />
+          <label className="btn screener-upload">
+            Subir CSV o Excel
+            <input className="screener-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onUpload} />
           </label>
           <button type="button" className="ghost" onClick={() => downloadBlob(new Blob([TEMPLATE], { type: "text/csv" }), "plantilla-estados-financieros.csv")}>
-            Descargar plantilla
+            Plantilla CSV
           </button>
+          <button type="button" className="ghost" onClick={downloadXlsxTemplate}>Plantilla Excel</button>
         </div>
         {upload.status === "loading" && <p role="status">Importando…</p>}
         {upload.status === "ok" && <p role="status">{upload.message}</p>}
         {upload.status === "error" && <p role="alert" className="error">{upload.message}</p>}
       </section>
 
-      <form className="card form" onSubmit={onRun}>
+      <form className="screener-filters form" onSubmit={onRun}>
         <fieldset>
           <legend>Filtros (todos opcionales)</legend>
           <label className="field"><span>F-Score mínimo (0–9)</span><input name="min_fscore" placeholder="7" /></label>
@@ -146,28 +159,32 @@ export default function Screener() {
         </fieldset>
         <button type="submit" disabled={state.status === "loading"}>{state.status === "loading" ? "Evaluando…" : "Ejecutar y guardar"}</button>
       </form>
+      </div>
 
+      <div className="screener-main">
       {state.status === "error" && <p role="alert" className="error">{state.message}</p>}
+      {state.status === "idle" && <section className="card screener-initial"><h2>Resultados del screener</h2><p className="muted">Configura los filtros y ejecuta una corrida para ver el universo, la cobertura y las empresas evaluadas.</p></section>}
+      {state.status === "loading" && <section className="card screener-initial" role="status">Evaluando emisoras y guardando la corrida…</section>}
 
       {data && (
-        <section className="stack" aria-label="Resultados">
+        <MotionPanel className="stack screener-results" role="region" aria-label="Resultados">
+          <h2>Resultados del screener</h2>
           <p className="notice" role="note">
             {data.disclaimer} Corrida #{data.id} guardada ({data.model_version}). {data.consensus.reason}
           </p>
-          <div className="stats">
+          <div className="stats screener-stats">
             <div className="card stat"><span className="label">Universo (acciones y ADR)</span><strong>{data.coverage.universe}</strong></div>
             <div className="card stat"><span className="label">Con estados financieros</span><strong>{data.coverage.with_financials}</strong></div>
             <div className="card stat"><span className="label">Aprobadas</span><strong>{data.coverage.passed}</strong>
               <span className="sub">{data.candidates.join(", ") || "ninguna"}</span></div>
-            {data.coverage.without_financials.length > 0 && (
+            <div className="card stat"><span className="label">No aprobadas</span><strong>{data.rows.filter((r) => !r.passed).length}</strong></div>
               <div className="card stat"><span className="label">Sin datos financieros</span>
                 <strong>{data.coverage.without_financials.length}</strong><span className="sub">{data.coverage.without_financials.join(", ")}</span></div>
-            )}
           </div>
 
-          <div className="row-actions">
+          <div className="row-actions screener-results-actions">
             <label className="check"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Mostrar también las no aprobadas</label>
-            <button type="button" className="ghost" onClick={exportCsv}>Exportar CSV</button>
+            <div className="row-actions"><button type="button" className="ghost" onClick={() => exportResults("csv")}>Exportar CSV</button><button type="button" className="ghost" onClick={() => exportResults("xlsx")}>Exportar Excel</button></div>
           </div>
 
           {rows.length === 0 ? (
@@ -188,7 +205,7 @@ export default function Screener() {
                   {rows.map((r) => (
                     <tr key={r.ticker}>
                       <th scope="row">{r.ticker}</th>
-                      <td>{r.passed ? "Aprobada" : "No aprobada"}</td>
+                      <td><span className={`screener-status ${r.passed ? "is-passed" : "is-failed"}`}>{r.passed ? "Aprobada" : "No aprobada"}</span></td>
                       <td className="num">{r.fscore.score ?? "—"}{r.fscore.status === "parcial" ? ` /${r.fscore.evaluable_criteria}` : ""}</td>
                       <td className="num">{fmtPct(r.metrics.margin_of_safety)}</td>
                       <td className="num">{fmtNum(r.metrics.free_cash_flow)}</td>
@@ -208,8 +225,10 @@ export default function Screener() {
               </table>
             </div>
           )}
-        </section>
+        </MotionPanel>
       )}
+      </div>
+      </div>
     </main>
   );
 }

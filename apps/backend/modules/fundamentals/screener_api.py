@@ -1,5 +1,6 @@
 import csv
 import io
+from decimal import Decimal, InvalidOperation
 
 from django.http import HttpResponse
 from rest_framework import serializers, status
@@ -9,6 +10,7 @@ from rest_framework.views import APIView
 
 from .screen_models import ScreenRun
 from .screener import MODEL_VERSION, ScreenError, run_screen
+from .spreadsheet import make_xlsx
 
 CSV_COLUMNS = [
     "ticker", "aprobada", "filtros_fallidos", "filtros_sin_dato", "fscore", "fscore_estado", "margen_de_seguridad",
@@ -41,6 +43,21 @@ def to_csv(results: dict) -> str:
             ]
         )  # fmt: skip
     return out.getvalue()
+
+
+def xlsx_rows(results):
+    rows = csv.reader(io.StringIO(to_csv(results)))
+    yield next(rows)
+    numeric = {4, 6, 7, 8, 9, 15, 16}
+    for row in rows:
+        for index in numeric:
+            try:
+                value = Decimal(row[index])
+                if value.is_finite() and len(value.as_tuple().digits) <= 15:
+                    row[index] = value
+            except InvalidOperation:
+                pass
+        yield row
 
 
 class RunScreenView(APIView):
@@ -88,6 +105,10 @@ class RunDetailView(APIView):
             resp = HttpResponse(to_csv(run.results), content_type="text/csv; charset=utf-8")
             resp["Content-Disposition"] = f'attachment; filename="screener-{run.id}.csv"'
             return resp
+        if fmt == "xlsx":
+            resp = HttpResponse(make_xlsx(xlsx_rows(run.results), "Resultados"), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            resp["Content-Disposition"] = f'attachment; filename="screener-{run.id}.xlsx"'
+            return resp
         if fmt != "json":
-            raise serializers.ValidationError({"format": "Usa json o csv."})
+            raise serializers.ValidationError({"format": "Usa json, csv o xlsx."})
         return Response({"id": run.id, "created_at": run.created_at, **run.results})
