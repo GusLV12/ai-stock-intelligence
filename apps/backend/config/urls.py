@@ -55,7 +55,7 @@ from modules.technical.search_api import (
     WatchlistDetailView,
     WatchlistView,
 )
-from modules.valuations.api import DcfView, FairValueDetailView, FairValueView, ReverseDcfView
+from modules.valuations.api import DcfView, FairValueDetailView, FairValuePreviewView, FairValueView, ReverseDcfView
 
 router = SimpleRouter(trailing_slash=False)
 router.register("accounts", AccountViewSet, basename="account")
@@ -132,6 +132,7 @@ urlpatterns = [
     path("api/v1/calculators/cagr", CagrView.as_view(), name="calc-cagr"),
     path("api/v1/calculators/target-buy-price", TargetBuyPriceView.as_view(), name="calc-target-price"),
     path("api/v1/valuations/fair-value", FairValueView.as_view(), name="fair-value"),
+    path("api/v1/valuations/fair-value/preview", FairValuePreviewView.as_view(), name="fair-value-preview"),
     path("api/v1/valuations/dcf", DcfView.as_view(), name="valuation-dcf"),
     path("api/v1/valuations/reverse-dcf", ReverseDcfView.as_view(), name="valuation-reverse-dcf"),
     path("api/v1/valuations/<int:pk>", FairValueDetailView.as_view(), name="valuation-detail"),

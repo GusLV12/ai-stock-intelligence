@@ -188,13 +188,16 @@ def asi_fair_value_v1(inputs: dict) -> dict:
     dq = inputs.get("financials_as_of")
     if dq:
         try:
-            months = (date.today() - date.fromisoformat(str(dq))).days / 30.4
-            if months > STALE_MONTHS:
-                warnings.append(
-                    f"Los estados financieros tienen {months:.0f} meses: datos posiblemente desactualizados."
-                )
+            financial_date = date.fromisoformat(str(dq))
         except ValueError:
             raise ValuationError("financials_as_of debe ser una fecha ISO (YYYY-MM-DD).") from None
+        if financial_date > date.today():
+            raise ValuationError("financials_as_of no puede ser una fecha futura.")
+        months = (date.today() - financial_date).days / 30.4
+        if months > STALE_MONTHS:
+            warnings.append(
+                f"Los estados financieros tienen {months:.0f} meses: datos posiblemente desactualizados."
+            )
     else:
         warnings.append("No se indicó la fecha de los estados financieros: no se puede evaluar su vigencia.")
 

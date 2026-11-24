@@ -1,0 +1,12 @@
+.fv-modes, .fv-steps { display: flex; gap: .6rem; flex-wrap: wrap; margin: 1rem 0; }
+.fv-search { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr); gap: 1.25rem; margin: 1rem 0; }
+.fv-search h2, .fv-history h2 { margin-top: 0; }
+.fv-source { border: 1px solid var(--border, #292e40); border-radius: .7rem; padding: 1rem; min-width: 0; }
+.fv-source h3 { margin-top: 0; }
+.fv-matches, .fv-history ul { padding: 0; margin: .75rem 0 0; list-style: none; }
+.fv-matches li, .fv-history li { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .6rem; border-bottom: 1px solid var(--border, #292e40); }
+.fv-history { margin-top: 1.25rem; }
+.fv-inputs { overflow: auto; max-height: 26rem; white-space: pre-wrap; }
+.form fieldset.fv-controls { display: block; border: 0; padding: 0; margin: 0; }
+.form fieldset[hidden] { display: none; }
+@media (max-width: 760px) { .fv-search { grid-template-columns: 1fr; } .fv-matches li, .fv-history li { align-items: flex-start; flex-direction: column; } }

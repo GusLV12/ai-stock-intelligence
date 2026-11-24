@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
@@ -34,36 +35,64 @@ def _summary(v: Valuation) -> dict:
     }  # fmt: skip
 
 
+def _calculate_fair_value(request):
+    data = dict(request.data) if isinstance(request.data, dict) else {}
+    if not data:
+        raise serializers.ValidationError({"detail": "Envía los supuestos en JSON."})
+    instrument, price_source = None, None
+    if (inst_id := data.get("instrument")) is not None:
+        instrument = Instrument.objects.filter(pk=inst_id).first()
+        if instrument is None:
+            raise serializers.ValidationError({"instrument": "Instrumento no encontrado."})
+        if data.get("currency") and str(data["currency"]).upper() != instrument.currency.upper():
+            raise serializers.ValidationError({"currency": "La moneda no coincide con la del instrumento."})
+        if data.get("market_price") is None:
+            mp = latest_price(instrument)
+            if mp is None:
+                raise serializers.ValidationError(
+                    {"market_price": "Indica el precio: el instrumento no tiene precios."}
+                )
+            if data.get("currency") and str(data["currency"]).upper() != mp.currency.upper():
+                raise serializers.ValidationError({"currency": "La moneda no coincide con el precio registrado."})
+            expected = data.pop("expected_price_observed_at", None)
+            expected_price = data.pop("expected_market_price", None)
+            expected_provider = data.pop("expected_price_provider", None)
+            try:
+                stale = (expected and parse_datetime(str(expected)) != mp.observed_at) or (
+                    expected_price is not None and D(expected_price, "expected_market_price") != mp.price
+                ) or (expected_provider is not None and expected_provider != mp.provider)
+            except (ValuationError, ValueError):
+                stale = True
+            if stale:
+                raise serializers.ValidationError({"market_price": "El precio registrado cambió; vuelve a calcular."})
+            data["market_price"] = str(mp.price)
+            data.setdefault("currency", mp.currency)
+            price_source = {"provider": mp.provider, "observed_at": mp.observed_at.isoformat()}
+        data.setdefault("instrument_class", instrument.asset_class)
+    try:
+        result = asi_fair_value_v1(data)
+    except INPUT_ERRORS as exc:
+        _bad(exc)
+    output = plain(result)
+    if price_source:
+        output["price_source"] = price_source
+    return data, instrument, output
+
+
+class FairValuePreviewView(APIView):
+    """Calcula con las mismas reglas del guardado, sin crear una valoración."""
+
+    def post(self, request):
+        _, _, output = _calculate_fair_value(request)
+        return Response(output)
+
+
 class FairValueView(APIView):
     def get(self, request):
         return Response([_summary(v) for v in Valuation.objects.filter(user=request.user)[:100]])
 
     def post(self, request):
-        data = dict(request.data) if isinstance(request.data, dict) else {}
-        if not data:
-            raise serializers.ValidationError({"detail": "Envía los supuestos en JSON."})
-        instrument, price_source = None, None
-        if (inst_id := data.get("instrument")) is not None:
-            instrument = Instrument.objects.filter(pk=inst_id).first()
-            if instrument is None:
-                raise serializers.ValidationError({"instrument": "Instrumento no encontrado."})
-            if data.get("market_price") is None:  # precio observado con su procedencia
-                mp = latest_price(instrument)
-                if mp is None:
-                    raise serializers.ValidationError(
-                        {"market_price": "Indica el precio: el instrumento no tiene precios."}
-                    )
-                data["market_price"] = str(mp.price)
-                data.setdefault("currency", mp.currency)
-                price_source = {"provider": mp.provider, "observed_at": mp.observed_at.isoformat()}
-            data.setdefault("instrument_class", instrument.asset_class)
-        try:
-            result = asi_fair_value_v1(data)
-        except INPUT_ERRORS as exc:
-            _bad(exc)
-        output = plain(result)
-        if price_source:
-            output["price_source"] = price_source
+        data, instrument, output = _calculate_fair_value(request)
         label = str(data.get("label", ""))[:120]
         inputs = {k: v for k, v in data.items() if k not in ("label",)}
         v = Valuation.objects.create(
