@@ -34,6 +34,7 @@ def scenario_report(user, data: dict, account_ids=None) -> dict:
     fx = loaded["fx"]
     result = simulate(loaded["holdings"], validate_shocks(shocks), fx_pct, fx["rate"] if fx else None)
     result["unpriced_positions"] = loaded["unpriced"]
+    result["provenance"] = loaded["provenance"]
     result["fx"] = fx
     return plain(result)
 

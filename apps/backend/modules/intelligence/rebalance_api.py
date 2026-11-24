@@ -55,12 +55,15 @@ class RebalancePreviewView(APIView):
                 )
             raw, source = policy.target_weights, f"política «{policy.name}»"
         try:
+            loaded = load_holdings(request.user)
             result = propose(
-                load_holdings(request.user)["holdings"], _targets(raw),
+                loaded["holdings"], _targets(raw),
                 _money(data.get("contribution"), "contribution"), bool(data.get("allow_sells", False)),
                 _money(data.get("commission_per_trade"), "commission_per_trade"),
             )  # fmt: skip
         except RebalanceError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
         result["targets_source"] = source
+        result["provenance"] = loaded["provenance"]
+        result["fx"] = loaded["fx"]
         return Response(plain(result))

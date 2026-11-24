@@ -1,0 +1,33 @@
+.intelligence-page { max-width: 1900px; }
+.intel-guide { padding: 20px; border: 1px solid #8061c9; border-radius: 14px; background: linear-gradient(115deg, rgba(101, 69, 180, .17), rgba(19, 22, 37, .92)); margin-bottom: 22px; }
+.intel-guide h2 { margin: 0 0 6px; }
+.intel-guide > p { margin: 0 0 14px; color: var(--muted); }
+.intel-guide-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.intel-guide-card { display: flex; align-items: flex-start; gap: 10px; border: 1px solid rgba(155, 129, 224, .28); background: rgba(15, 18, 31, .46); padding: 14px 12px; border-radius: 10px; }
+.intel-guide-icon { color: #bd9cff; font-weight: 700; font-size: 1.05rem; }
+.intel-guide-card h3 { margin: 0 0 5px; font-size: 1rem; }
+.intel-guide-card p { margin: 0; font-size: .86rem; line-height: 1.4; color: var(--muted); }
+.intel-guide .intel-disclaimer { margin: 14px 0 0; font-size: .83rem; }
+.intel-policy-guide { padding: 18px 20px; border: 1px solid rgba(155, 129, 224, .5); border-radius: 12px; background: rgba(101, 69, 180, .11); }
+.intel-policy-guide h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.intel-policy-guide p { margin: 7px 0 0; line-height: 1.5; }
+.intel-tabs { display: flex; gap: 6px; overflow-x: auto; border-bottom: 2px solid #7852dd; margin-bottom: 16px; }
+.intel-tabs button { flex: 1 0 auto; border-radius: 10px 10px 0 0; }
+.intel-panel { min-width: 0; }
+.intel-exposure > header h2 { margin: 0; }
+.intel-exposure > header p { margin: 5px 0 0; }
+.intel-exposure-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.intel-weight { min-width: 0; }
+.intel-weight h3 { margin: 0 0 12px; }
+.intel-weight .tablewrap { width: 100%; }
+.intel-exposure-grid { align-items: start; }
+.intel-weight .intel-issuer-table { max-height: 320px; overflow: auto; }
+.intel-issuer-table th, .intel-issuer-table td { padding: 7px 10px; }
+.intel-issuer-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2, #191c26); }
+.intel-issuer-table:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.intel-donut { width: 116px; height: 116px; border-radius: 50%; margin: 4px auto 18px; display: grid; place-items: center; }
+.intel-donut::after { content: ""; width: 66%; height: 66%; border-radius: 50%; background: #121520; }
+.intel-swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; }
+@media (max-width: 1150px) { .intel-guide-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .intel-guide { padding: 16px; } .intel-guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .intel-exposure-grid { grid-template-columns: 1fr; } }
+@media (max-width: 420px) { .intel-guide-grid { grid-template-columns: 1fr; } }

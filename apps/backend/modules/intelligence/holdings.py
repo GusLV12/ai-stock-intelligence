@@ -92,9 +92,22 @@ def load_holdings(user, account_ids=None) -> dict:
                         accounts[s.account_id].name, accounts[s.account_id].broker, s.cash_amount, Decimal(1),
                         s.cash_amount, base, "REPORTE", None)  # fmt: skip
             cash.append(h)
+    selected_accounts = [a for a in accounts.values() if account_ids is None or a.id in account_ids]
+    price_sources = [
+        {"ticker": h.ticker, "account": h.account, "provider": h.price_provider, "age_hours": h.price_age_hours}
+        for h in holdings
+    ]
+    cash_sources = [
+        {"account": a.name, "source": latest[a.id].source, "observed_at": latest[a.id].as_of,
+         "currency": latest[a.id].cash_currency, "available": latest[a.id].cash_amount is not None}
+        if a.id in latest else {"account": a.name, "source": None, "observed_at": None, "currency": None, "available": False}
+        for a in selected_accounts
+    ]
     return {
         "holdings": [*holdings, *cash],
         "unpriced": unpriced,
         "unconverted": unconverted,
-        "fx": {"pair": "USD/MXN", "rate": fx_rate, "provider": fx.provider if fx else None} if fx else None,
+        "fx": {"pair": "USD/MXN", "rate": fx_rate, "provider": fx.provider, "observed_at": fx.observed_at,
+               "age_hours": round((now - fx.observed_at).total_seconds() / 3600, 1)} if fx else None,
+        "provenance": {"prices": price_sources, "cash_reports": cash_sources},
     }

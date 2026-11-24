@@ -35,9 +35,20 @@ def analyze(holdings: list, policy: dict | None = None) -> dict:
         return {"total_value_usd": ZERO, "evaluable": False, "excluded": excluded,
                 "note": "Sin posiciones valoradas: no hay exposición que calcular."}  # fmt: skip
 
-    positions = sorted(valued, key=lambda h: -h.value_base)
-    pos_weights = [{"ticker": h.ticker, "asset_class": h.asset_class, "value": h.value_base, "weight": h.value_base / total}
-                   for h in positions]  # fmt: skip
+    groups = {}
+    ticker_ids = defaultdict(set)
+    for h in valued:
+        key = (h.ticker, h.instrument_id)
+        if key not in groups:
+            groups[key] = {"ticker": h.ticker, "instrument_id": h.instrument_id, "asset_class": h.asset_class, "value": ZERO}
+        groups[key]["value"] += h.value_base
+        if h.instrument_id is not None:
+            ticker_ids[h.ticker].add(h.instrument_id)
+    pos_weights = []
+    for p in sorted(groups.values(), key=lambda item: -item["value"]):
+        p["weight"] = p["value"] / total
+        p["display_name"] = f"{p['ticker']} (instrumento {p['instrument_id']})" if len(ticker_ids[p["ticker"]]) > 1 else p["ticker"]
+        pos_weights.append(p)
     ws = [p["weight"] for p in pos_weights]
     hhi = sum((w * w for w in ws), ZERO)
     risky = [p for p in pos_weights if p["asset_class"] != "CASH"]

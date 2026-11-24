@@ -2,21 +2,46 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../lib/api";
+import { MotionPanel } from "../lib/Motion";
+import "./inteligencia.css";
 
 const TABS = [
   ["exposure", "Exposición"],
   ["rebalance", "Rebalanceo"],
-  ["shocks", "Shocks"],
-  ["risk", "Riesgo"],
+  ["shocks", "Escenarios"],
+  ["risk", "Riesgo histórico"],
   ["theses", "Tesis"],
 ];
+
+const GUIDE = [
+  ["Exposición", "Distribución por emisora, clase, tipo de sector y moneda."],
+  ["Rebalanceo", "Propuesta teórica según objetivos y aportaciones."],
+  ["Escenarios", "Impacto de cambios hipotéticos en la cartera."],
+  ["Riesgo histórico", "Volatilidad, caídas y correlaciones históricas."],
+  ["Tesis", "Ideas de inversión, riesgos y seguimientos."],
+];
+const CHART_COLORS = ["#8a65ff", "#31c9b1", "#edbb43", "#f07890", "#67a6f4", "#a6aabe", "#c294e9", "#8bd4df"];
 
 const num = (v) => (String(v ?? "").trim() === "" ? undefined : String(v).trim().replace(",", "."));
 const pct = (v, d = 1) => (v == null ? "—" : `${(Number(v) * 100).toFixed(d)}%`);
 const pctRaw = (v, d = 2) => (v == null ? "—" : `${Number(v).toFixed(d)}%`);
 const usd = (v) => (v == null ? "—" : Number(v).toLocaleString("en-US", { style: "currency", currency: "USD" }));
+
+function parsePairs(value) {
+  const parsed = {};
+  for (const part of String(value || "").split(",").map((x) => x.trim()).filter(Boolean)) {
+    const pieces = part.split(":");
+    const key = pieces[0]?.trim().toUpperCase();
+    const amount = pieces[1]?.trim();
+    if (pieces.length !== 2 || !key || !amount || Object.hasOwn(parsed, key)) {
+      throw new Error("Usa pares únicos como AAA:40, BBB:20; revisa los valores incompletos.");
+    }
+    parsed[key] = amount;
+  }
+  return parsed;
+}
 
 function useGuard() {
   const router = useRouter();
@@ -53,19 +78,47 @@ function Notes({ items }) {
   );
 }
 
-function WeightTable({ title, groups }) {
+function Provenance({ data }) {
+  if (!data?.provenance) return null;
+  const { prices = [], cash_reports: cash = [] } = data.provenance;
+  const missingCash = cash.filter((c) => !c.available);
+  const stalePrices = prices.filter((p) => p.age_hours != null && p.age_hours > 48);
+  return <div className="intel-provenance-wrap">
+    {missingCash.length > 0 && <p className="notice warn" role="note">Efectivo incompleto: {missingCash.map((c) => c.account).join(", ")} sin saldo reportado. Los totales pueden ser parciales.</p>}
+    {stalePrices.length > 0 && <p className="notice warn" role="note">Hay {stalePrices.length} precio(s) con más de 48 horas. Revisa sus fechas antes de interpretar el análisis.</p>}
+    <details className="card intel-provenance"><summary>Fuentes y antigüedad de los datos</summary>
+    <p className="muted small">Precios observados, no tiempo real. El efectivo procede del último reporte disponible y no incorpora movimientos posteriores.</p>
+    {prices.length > 0 && <ul>{prices.map((p, i) => <li key={`${p.ticker}-${p.account}-${i}`}>{p.ticker} · {p.account}: {p.provider || "sin precio"}{p.age_hours != null ? ` · hace ${p.age_hours} h` : ""}</li>)}</ul>}
+    {cash.length > 0 && <><h3>Efectivo reportado</h3><ul>{cash.map((c, i) => <li key={`${c.account}-${i}`}>{c.account}: {c.available ? `${c.source} · ${new Date(c.observed_at).toLocaleString("es-MX")} · ${c.currency}` : "sin saldo reportado"}</li>)}</ul></>}
+    {data.fx && <p className="muted small">Tipo de cambio {data.fx.pair}: {data.fx.provider} · hace {data.fx.age_hours} h.</p>}
+    </details></div>;
+}
+
+function WeightTable({ title, groups, chart = false, note, compact = false }) {
+  const entries = Object.entries(groups);
+  let offset = 0;
+  const segments = entries.map(([, value], i) => {
+    const start = offset;
+    offset += Math.max(0, Math.min(100, Number(value.weight) * 100 || 0));
+    return `${CHART_COLORS[i % CHART_COLORS.length]} ${start}% ${offset}%`;
+  });
   return (
-    <div className="tablewrap">
+    <section className="intel-weight card">
+      <h3>{title}</h3>
+      {note && <p className="muted small">{note}</p>}
+      {chart && segments.length > 0 && offset > 0 && <div className="intel-donut" aria-hidden="true" style={{ background: `conic-gradient(${segments.join(", ")})` }} />}
+    <div className={`tablewrap${compact ? " intel-issuer-table" : ""}`} tabIndex={compact ? 0 : undefined} role={compact ? "region" : undefined} aria-label={compact ? "Tabla de emisoras con desplazamiento" : undefined}>
       <table>
         <caption className="sr">{title}</caption>
         <thead><tr><th scope="col">{title}</th><th scope="col" className="num">Valor</th><th scope="col" className="num">Peso</th></tr></thead>
         <tbody>
-          {Object.entries(groups).map(([k, v]) => (
-            <tr key={k}><th scope="row">{k}</th><td className="num">{usd(v.value)}</td><td className="num">{pct(v.weight)}</td></tr>
+          {entries.map(([k, v], i) => (
+            <tr key={k}><th scope="row">{chart && <span className="intel-swatch" aria-hidden="true" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />}{k}</th><td className="num">{usd(v.value)}</td><td className="num">{pct(v.weight)}</td></tr>
           ))}
         </tbody>
       </table>
     </div>
+    </section>
   );
 }
 
@@ -94,11 +147,9 @@ function Exposure() {
     const body = { name: f.get("name") || "Política", objective: f.get("objective") };
     if (num(f.get("max_position_pct"))) body.max_position_pct = num(f.get("max_position_pct"));
     if (num(f.get("min_cash_pct"))) body.min_cash_pct = num(f.get("min_cash_pct"));
-    const cls = {};
-    for (const part of String(f.get("max_class_pct") || "").split(",").map((x) => x.trim()).filter(Boolean)) {
-      const [k, v] = part.split(":");
-      if (k && v) cls[k.trim().toUpperCase()] = v.trim();
-    }
+    let cls;
+    try { cls = parsePairs(f.get("max_class_pct")); }
+    catch (err) { setSaved(err.message); return; }
     if (Object.keys(cls).length) body.max_class_pct = cls;
     try {
       await api("/api/v1/portfolio/policies", { method: "POST", body });
@@ -115,7 +166,8 @@ function Exposure() {
   if (!d.evaluable) return <div className="card empty"><h2>Sin posiciones valoradas</h2><p>{d.note}</p></div>;
   const c = d.concentration;
   return (
-    <div className="stack">
+    <div className="stack intel-exposure">
+      <header><h2>Exposición</h2><p className="muted">Distribución de las posiciones valoradas por emisora, clase, tipo de sector y moneda.</p></header>
       <div className="stats">
         <Stat label="Valor total" value={usd(d.total_value_usd)} sub="incluye efectivo" />
         <Stat label="Posición mayor" value={`${c.largest.ticker} ${pct(c.largest.weight)}`} sub={`Top 3: ${pct(c.top3_weight)} · Top 5: ${pct(c.top5_weight)}`} />
@@ -135,14 +187,21 @@ function Exposure() {
           </ul>
         </div>
       )}
-      <div className="grid2">
-        <WeightTable title="Por emisora" groups={Object.fromEntries(d.positions.map((p) => [p.ticker, p]))} />
-        <WeightTable title="Por clase de activo" groups={d.by_asset_class} />
-        <WeightTable title="Por tipo de sector" groups={d.by_sector_kind} />
-        <WeightTable title="Por moneda" groups={d.by_currency} />
+      <div className="intel-exposure-grid">
+        <WeightTable title="Por emisora" compact groups={Object.fromEntries(d.positions.map((p) => [p.display_name ?? p.ticker, p]))} />
+        <WeightTable title="Por clase de activo" groups={d.by_asset_class} chart />
+        <WeightTable title="Por tipo de sector" groups={d.by_sector_kind} chart note="Distribución de activos invertidos; excluye efectivo." />
+        <WeightTable title="Por moneda" groups={d.by_currency} chart />
       </div>
       <Notes items={[...(d.warnings ?? []), d.etf_look_through?.note, d.disclaimer]} />
+      <Provenance data={d} />
 
+      <section className="intel-policy-guide" aria-labelledby="intel-policy-guide-title">
+        <h2 id="intel-policy-guide-title">¿Para qué sirve la política?</h2>
+        <p>Define límites de referencia para revisar la concentración de tu cartera. El análisis avisa si una posición o clase supera su máximo, o si el efectivo queda por debajo del mínimo indicado.</p>
+        <p>Los porcentajes que dejes vacíos no establecen un límite. Los valores de ejemplo en gris no se guardan como datos. Cada guardado crea una versión nueva; no compra, vende ni modifica tus posiciones.</p>
+        <p className="muted small">Para máximos por clase escribe pares como <strong>CRYPTO:10, ETF:30</strong>. Clases admitidas: STOCK, ADR, ETF, CRYPTO y CASH. Los límites por clase no son objetivos de rebalanceo.</p>
+      </section>
       <form className="card form" onSubmit={savePolicy}>
         <fieldset>
           <legend>Política (se guarda una versión nueva)</legend>
@@ -170,11 +229,9 @@ function Rebalance() {
     const body = { allow_sells: !!f.get("allow_sells") };
     if (num(f.get("contribution"))) body.contribution = num(f.get("contribution"));
     if (num(f.get("commission"))) body.commission_per_trade = num(f.get("commission"));
-    const targets = {};
-    for (const part of String(f.get("targets") || "").split(",").map((x) => x.trim()).filter(Boolean)) {
-      const [k, v] = part.split(":");
-      if (k && v) targets[k.trim().toUpperCase()] = v.trim();
-    }
+    let targets;
+    try { targets = parsePairs(f.get("targets")); }
+    catch (err) { setState({ status: "error", message: err.message }); return; }
     if (Object.keys(targets).length) body.targets = targets;
     setState({ status: "loading" });
     try {
@@ -227,6 +284,7 @@ function Rebalance() {
             </table>
           </div>
           <Notes items={d.warnings} />
+          <Provenance data={d} />
         </>
       )}
     </div>
@@ -295,6 +353,7 @@ function Shocks() {
             </table>
           </div>
           <Notes items={d.assumptions} />
+          <Provenance data={d} />
         </>
       )}
     </div>
@@ -340,7 +399,7 @@ function Risk() {
       </form>
       {state.status === "loading" && <p role="status">Calculando…</p>}
       {state.status === "error" && <p role="alert" className="error">{state.message}</p>}
-      {d && !d.evaluable && <div className="card empty"><h2>Sin historial</h2><p>{d.note ?? "Descarga el historial con refresh_price_history."}</p><Notes items={d.warnings} /></div>}
+      {d && !d.evaluable && <div className="card empty"><h2>Sin historial</h2><p>{d.note ?? "Descarga el historial con refresh_price_history."}</p><Notes items={d.warnings} /><Provenance data={d} /></div>}
       {d?.evaluable && (
         <>
           <div className="stats">
@@ -373,6 +432,7 @@ function Risk() {
             </div>
           )}
           <Notes items={[...d.warnings, d.disclaimer]} />
+          <Provenance data={d} />
         </>
       )}
     </div>
@@ -505,9 +565,17 @@ const PANELS = { exposure: Exposure, rebalance: Rebalance, shocks: Shocks, risk:
 
 export default function Inteligencia() {
   const [tab, setTab] = useState("exposure");
+  const tabsRef = useRef({});
   const Panel = PANELS[tab];
+  function navigateTabs(event, index) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+    setTab(TABS[next][0]);
+    tabsRef.current[TABS[next][0]]?.focus();
+  }
   return (
-    <main className="wrap">
+    <main className="wrap intelligence-page">
       <header className="top">
         <div>
           <h1>Inteligencia de portafolio</h1>
@@ -515,12 +583,18 @@ export default function Inteligencia() {
         </div>
         <nav className="actions" aria-label="Principal"><Link className="btn ghost" href="/">Portafolio</Link></nav>
       </header>
-      <div className="row-actions" role="tablist" aria-label="Secciones">
-        {TABS.map(([key, label]) => (
-          <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "" : "ghost"} onClick={() => setTab(key)}>{label}</button>
+      <section className="intel-guide" aria-labelledby="intel-guide-title">
+        <h2 id="intel-guide-title">¿Para qué sirve esta vista?</h2>
+        <p>Explora la composición de tu cartera y analiza alternativas con cinco herramientas.</p>
+        <div className="intel-guide-grid">{GUIDE.map(([title, description], i) => <div className="intel-guide-card" key={title}><span aria-hidden="true" className="intel-guide-icon">{String(i + 1).padStart(2, "0")}</span><div><h3>{title}</h3><p>{description}</p></div></div>)}</div>
+        <p className="intel-disclaimer">Investigación personal · No es asesoría de inversión. Los escenarios son hipotéticos, no predicciones; el rebalanceo no ejecuta operaciones.</p>
+      </section>
+      <div className="intel-tabs" role="tablist" aria-label="Secciones">
+        {TABS.map(([key, label], index) => (
+          <button key={key} id={`intel-tab-${key}`} ref={(node) => { tabsRef.current[key] = node; }} role="tab" aria-selected={tab === key} aria-controls="intel-panel" tabIndex={tab === key ? 0 : -1} className={tab === key ? "" : "ghost"} onKeyDown={(event) => navigateTabs(event, index)} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
-      <Panel key={tab} />
+      <MotionPanel key={tab} className="intel-panel" role="tabpanel" id="intel-panel" aria-labelledby={`intel-tab-${tab}`} tabIndex={0}><Panel /></MotionPanel>
     </main>
   );
 }

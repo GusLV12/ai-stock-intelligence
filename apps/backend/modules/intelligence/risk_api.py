@@ -38,12 +38,24 @@ def risk_report(user, window: int, account_ids=None) -> dict:
     holdings = [h for h in loaded["holdings"] if h.value_base is not None]
     total = sum((h.value_base for h in holdings), Decimal(0))
     if total <= 0:
-        return {"evaluable": False, "note": "Sin posiciones valoradas: no hay riesgo que calcular."}
+        return plain({"evaluable": False, "note": "Sin posiciones valoradas: no hay riesgo que calcular.",
+                      "provenance": loaded["provenance"], "fx": loaded["fx"]})
     by_instrument = {h.instrument_id: h for h in holdings if h.instrument_id}
+    ticker_ids = defaultdict(set)
+    for h in holdings:
+        if h.instrument_id:
+            ticker_ids[h.ticker].add(h.instrument_id)
+    ambiguous = {ticker for ticker, ids in ticker_ids.items() if len(ids) > 1}
+    by_instrument = {pk: h for pk, h in by_instrument.items() if h.ticker not in ambiguous}
     raw_series = _series_for(list(by_instrument), since)
     series = {by_instrument[i].ticker: bars for i, bars in raw_series.items()}
-    weights = {h.ticker: float(h.value_base / total) for h in holdings}
+    totals = defaultdict(Decimal)
+    for h in holdings:
+        totals[h.ticker] += h.value_base
+    weights = {ticker: float(value / total) for ticker, value in totals.items()}
     result = risk.analyze(series, weights)
+    if ambiguous:
+        result["warnings"].append("Símbolos ambiguos excluidos del riesgo: " + ", ".join(sorted(ambiguous)) + ".")
     no_history = sorted(h.ticker for h in holdings if h.asset_class != "CASH" and h.ticker not in series)
     if no_history:
         result["warnings"].append(
@@ -51,6 +63,7 @@ def risk_report(user, window: int, account_ids=None) -> dict:
         )
     result.update(
         evaluable=bool(result["assets"]), requested_window_days=window,
+        provenance=loaded["provenance"], fx=loaded["fx"],
         providers=sorted(Counter(r.provider for r in DailyClose.objects.filter(instrument_id__in=list(by_instrument), date__gte=since).only("provider")).keys()),
         disclaimer="Métricas históricas, no predicen el riesgo futuro ni son asesoría de inversión.",
     )  # fmt: skip

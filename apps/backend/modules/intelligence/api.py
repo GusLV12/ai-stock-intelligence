@@ -112,6 +112,7 @@ class ExposureView(APIView):
                     }
                 )
         result["unpriced_positions"] = loaded["unpriced"]
+        result["provenance"] = loaded["provenance"]
         result["fx"] = loaded["fx"]
         result["disclaimer"] = (
             "Exposición calculada con precios observados (no tiempo real). No es asesoría de inversión."

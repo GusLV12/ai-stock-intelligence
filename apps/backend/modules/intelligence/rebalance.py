@@ -7,6 +7,7 @@ No son órdenes: no se envía nada a ningún broker. Reglas:
 - No estima impuestos: una venta puede generar ganancia gravable (revisa el Centro fiscal).
 """
 
+from dataclasses import replace
 from decimal import ROUND_DOWN, Decimal
 
 ZERO = Decimal(0)
@@ -39,7 +40,21 @@ def propose(
         raise RebalanceError("Los pesos objetivo suman más de 100%.")
     warnings = [TAX_NOTE, "Propuesta teórica: no se envía ninguna orden."]
 
-    by_ticker = {h.ticker: h for h in holdings if h.asset_class != "CASH"}
+    by_ticker = {}
+    for h in holdings:
+        if h.asset_class == "CASH":
+            continue
+        previous = by_ticker.get(h.ticker)
+        if previous is None:
+            by_ticker[h.ticker] = h
+            continue
+        if (previous.instrument_id != h.instrument_id or previous.currency != h.currency
+                or previous.price != h.price or previous.value_base is None or h.value_base is None):
+            raise RebalanceError(f"No se puede unificar {h.ticker}: hay identidades o precios incompatibles.")
+        by_ticker[h.ticker] = replace(previous, quantity=previous.quantity + h.quantity,
+                                      value=previous.value + h.value, value_base=previous.value_base + h.value_base)
+    if len(by_ticker) < sum(1 for h in holdings if h.asset_class != "CASH"):
+        warnings.append("Las posiciones de una misma emisora se agrupan entre cuentas; las operaciones no se asignan por cuenta.")
     cash_now = sum(
         (h.value_base for h in holdings if h.asset_class == "CASH" and h.value_base is not None), ZERO
     )
@@ -111,7 +126,7 @@ def propose(
         post = h.value_base + trade_amount
         trades.append(
             {
-                "ticker": t, "price": h.price, "current_value": h.value_base, "current_weight_pct": h.value_base / total_now * HUNDRED,
+                "ticker": t, "price": h.price, "current_value": h.value_base, "current_weight_pct": h.value_base / total_now * HUNDRED if total_now else ZERO,
                 "target_weight_pct": targets.get(t), "side": side, "shares": shares if side else ZERO,
                 "amount": abs(trade_amount) if side else ZERO,
                 "post_weight_pct": post / total_after * HUNDRED if t in targets else None,
@@ -120,6 +135,8 @@ def propose(
         )  # fmt: skip
     real_trades = sum(1 for x in trades if x["side"])
     cash_after = cash_now + contribution - spent + received - commission_per_trade * real_trades
+    if cash_after < ZERO:
+        raise RebalanceError("Las comisiones superan el efectivo disponible; ajusta la comisión o la aportación.")
     drifts = [abs(x["drift_after_pct"]) for x in trades if x["drift_after_pct"] is not None]
     return {
         "total_before_usd": total_now,
