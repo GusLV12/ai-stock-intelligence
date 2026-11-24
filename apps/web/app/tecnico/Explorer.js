@@ -6,7 +6,7 @@ import { motion } from "motion/react";
 
 const initial = { universe: "portfolio", currency: "USD", min_price: "", max_price: "", min_volume: "", rsi_min: "", rsi_max: "", ema: "", max_age: "" };
 
-export default function Explorer({ symbols, onSelect }) {
+export default function Explorer({ symbols, onSelect, refreshVersion }) {
   const [filters, setFilters] = useState(initial);
   const [state, setState] = useState({ status: "loading" });
   const filtersRef = useRef(null);
@@ -18,11 +18,14 @@ export default function Explorer({ symbols, onSelect }) {
       if (resultsRef.current) resultsRef.current.open = false;
     }
     let alive = true;
-    api("/api/v1/technical/explore?universe=portfolio&currency=USD")
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== ""));
+    api(`/api/v1/technical/explore?${query}`)
       .then((data) => { if (alive) setState({ status: "ready", data }); })
       .catch((error) => { if (alive) setState({ status: "error", message: error.message }); });
     return () => { alive = false; };
-  }, []);
+  // Se conservan los filtros elegidos al terminar la actualización.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshVersion]);
 
   function update(event) { setFilters({ ...filters, [event.target.name]: event.target.value }); }
   async function apply(event) {

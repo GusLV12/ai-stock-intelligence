@@ -3,6 +3,8 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import SimpleRouter
 
+from modules.technical.refresh_api import PortfolioHistoryRefreshView
+
 from modules.accounts.api import AccountViewSet
 from modules.assistant.api import ChatView
 from modules.calculators.api import CagrView, TargetBuyPriceView
@@ -84,6 +86,7 @@ urlpatterns = [
     path("api/v1/technical/symbols", SymbolsView.as_view(), name="technical-symbols"),
     path("api/v1/technical/market-search", MarketSearchView.as_view(), name="technical-market-search"),
     path("api/v1/technical/market-history", LoadMarketHistoryView.as_view(), name="technical-market-history"),
+    path("api/v1/technical/portfolio-history-refresh", PortfolioHistoryRefreshView.as_view(), name="technical-portfolio-history-refresh"),
     path("api/v1/technical/watchlist", WatchlistView.as_view(), name="technical-watchlist"),
     path(
         "api/v1/technical/watchlist/<int:pk>",

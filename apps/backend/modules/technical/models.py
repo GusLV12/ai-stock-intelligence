@@ -90,3 +90,23 @@ class MarketIdentity(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["symbol", "market", "currency"], name="unique_market_identity")
         ]
+
+
+class PortfolioHistoryRun(models.Model):
+    """Trabajo de actualización de la terminal; jamás modifica el historial de Quant."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    status = models.CharField(max_length=12, default="running")
+    source = models.CharField(max_length=12, default="manual")
+    schedule_date = models.DateField(null=True, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    total = models.PositiveIntegerField(default=0)
+    results = models.JSONField(default=list)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user"], condition=models.Q(status="running"), name="one_active_technical_refresh"),
+            models.UniqueConstraint(fields=["user", "schedule_date"], condition=models.Q(schedule_date__isnull=False), name="one_scheduled_technical_refresh"),
+        ]

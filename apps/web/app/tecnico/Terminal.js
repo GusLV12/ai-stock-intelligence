@@ -111,7 +111,7 @@ function Notes({ items }) {
 }
 
 /* --------------------------------- Diario --------------------------------- */
-function Daily({ ticker, instrumentId, currency, symbols }) {
+function Daily({ ticker, instrumentId, currency, symbols, refreshVersion }) {
   const guard = useGuard();
   const [state, setState] = useState({ status: "loading" });
   const [overlays, setOverlays] = useState({ sma: false, ema: true, bollinger: false });
@@ -131,7 +131,7 @@ function Daily({ ticker, instrumentId, currency, symbols }) {
       .then((d) => { if (alive) setState({ status: "ready", data: d }); })
       .catch((err) => { if (alive && !guard(err)) setState({ status: "error", message: err.message }); });
     return () => { alive = false; };
-  }, [ticker, instrumentId, guard]);
+  }, [ticker, instrumentId, guard, refreshVersion]);
 
   useEffect(() => {
     if (!instrumentId) return undefined;
@@ -545,6 +545,9 @@ export default function Terminal() {
   const [symbols, setSymbols] = useState(null);
   const [selectedId, setSelectedId] = useState("");
   const [historyVersion, setHistoryVersion] = useState(0);
+  const [refreshRun, setRefreshRun] = useState(null);
+  const [refreshError, setRefreshError] = useState("");
+  const previousRefresh = useRef(null);
   const selected = symbols?.find((s) => String(s.instrument_id) === selectedId);
   const ticker = selected?.ticker ?? "";
 
@@ -554,11 +557,39 @@ export default function Terminal() {
       .then((s) => {
         if (!alive) return;
         setSymbols(s);
-        setSelectedId((cur) => cur || String((s.find((x) => x.bars > 0) ?? s[0])?.instrument_id ?? ""));
+        setSelectedId((cur) => cur || String((s.find((x) => x.held && x.bars > 0) ?? s.find((x) => x.bars > 0) ?? s[0])?.instrument_id ?? ""));
       })
       .catch((err) => { if (alive) guard(err); });
     return () => { alive = false; };
   }, [guard]);
+
+  useEffect(() => {
+    let active = true;
+    let timer;
+    const poll = async () => {
+      try {
+        const run = await api("/api/v1/technical/portfolio-history-refresh");
+        if (!active) return;
+        if (previousRefresh.current?.status === "running" && run?.status !== "running") setHistoryVersion((v) => v + 1);
+        previousRefresh.current = run;
+        setRefreshRun(run);
+        timer = setTimeout(poll, run?.status === "running" ? 2500 : 30000);
+      } catch (error) { if (active && !guard(error)) setRefreshError(error.message); }
+    };
+    poll();
+    return () => { active = false; clearTimeout(timer); };
+  }, [guard, refreshRun?.id]);
+
+  async function refreshPortfolio() {
+    setRefreshError("");
+    try { const run = await api("/api/v1/technical/portfolio-history-refresh", { method: "POST", body: {} }); previousRefresh.current = run; setRefreshRun(run); }
+    catch (error) {
+      if (error.status === 409) {
+        try { const run = await api("/api/v1/technical/portfolio-history-refresh"); previousRefresh.current = run; setRefreshRun(run); }
+        catch (lookupError) { if (!guard(lookupError)) setRefreshError(lookupError.message); }
+      } else if (!guard(error)) setRefreshError(error.message);
+    }
+  }
 
   return (
     <main className="wrap">
@@ -585,7 +616,15 @@ export default function Terminal() {
           {TABS.map(([k, l]) => (<button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "" : "ghost"} onClick={() => setTab(k)}>{l}</button>))}
         </div>
       </div>
-      {tab === "daily" && <MotionPanel className="technical-workspace"><Explorer symbols={symbols} onSelect={(id) => setSelectedId(String(id))} /><Daily key={`${selectedId}-${historyVersion}`} ticker={ticker} instrumentId={selectedId} currency={selected?.currency} symbols={symbols} /></MotionPanel>}
+      {tab === "daily" && <>
+        <div className="row-actions">
+          <button type="button" onClick={refreshPortfolio} disabled={refreshRun?.status === "running"}>Actualizar acciones de mi cartera</button>
+          {refreshRun && <span role="status">{refreshRun.status === "running" ? `Actualizando ${refreshRun.results.length} de ${refreshRun.total}…` : `Último intento: ${new Date(refreshRun.finished_at || refreshRun.started_at).toLocaleString("es-MX")} · ${{ completed: "finalizado", failed: "falló", interrupted: "interrumpido" }[refreshRun.status] ?? refreshRun.status}`}</span>}
+          {refreshError && <span className="error" role="alert">{refreshError}</span>}
+        </div>
+        {refreshRun?.results?.length > 0 && <details><summary>Resultado por emisora ({refreshRun.results.length})</summary><ul>{refreshRun.results.map((r, i) => <li key={`${r.ticker}-${i}`}>{r.ticker}: {r.status === "updated" ? "actualizada" : r.status === "unchanged" ? "sin cambios" : `error: ${r.message}`} {r.last_bar && `· ${r.provider} · última vela ${r.last_bar}`}</li>)}</ul></details>}
+        <MotionPanel className="technical-workspace"><Explorer symbols={symbols} refreshVersion={historyVersion} onSelect={(id) => setSelectedId(String(id))} /><Daily key={selectedId} refreshVersion={historyVersion} ticker={ticker} instrumentId={selectedId} currency={selected?.currency} symbols={symbols} /></MotionPanel>
+      </>}
       {tab === "intraday" && <MotionPanel><Intraday key={selectedId} ticker={ticker} instrumentId={selectedId} /></MotionPanel>}
       {tab === "plan" && <MotionPanel><Plan /></MotionPanel>}
       {tab === "alerts" && <MotionPanel><Alerts symbols={symbols} /></MotionPanel>}

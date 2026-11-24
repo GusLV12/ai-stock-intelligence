@@ -182,11 +182,13 @@ class YahooProvider:
     MAX_FUTURE = 300  # segundos de tolerancia con relojes desfasados
 
     def __init__(
-        self, http=http_get_json, sleep=time.sleep, clock=time.monotonic, pause: float = 0.3, now=None
+        self, http=http_get_json, sleep=time.sleep, clock=time.monotonic, pause: float = 0.3, now=None,
+        include_closed_today: bool = False,
     ):
         self._http, self._sleep, self._clock = http, sleep, clock
         self._pause, self._last = pause, None
         self._now = now or (lambda: datetime.now(UTC))
+        self._include_closed_today = include_closed_today
 
     def _throttle(self):
         now = self._clock()
@@ -350,7 +352,16 @@ class YahooProvider:
                 )  # quita el ruido de float del proveedor
             except (TypeError, ValueError, OverflowError, OSError, ProviderError):
                 continue
-            if value <= 0 or day >= today_local:  # sin cierres inválidos ni la barra de hoy
+            # Solo la terminal puede admitir hoy: exige fin de sesión explícito y ya transcurrido.
+            periods = meta.get("currentTradingPeriod")
+            regular = periods.get("regular", {}) if isinstance(periods, dict) else {}
+            try:
+                end = datetime.fromtimestamp(int(regular["end"]), UTC)
+                closed_today = (self._include_closed_today and end <= self._now()
+                                and (end + timedelta(seconds=offset)).date() == today_local)
+            except (KeyError, TypeError, ValueError, OverflowError, OSError):
+                closed_today = False
+            if value <= 0 or day > today_local or (day == today_local and not closed_today):
                 continue
             by_date[day] = value  # una barra por día; la posterior gana
             full[day] = {
