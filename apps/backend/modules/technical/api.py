@@ -18,7 +18,7 @@ from . import trade_plan
 from .models import TechnicalClose
 from .signals import DEFAULTS, SignalError, analyze
 
-MAX_DAYS, DEFAULT_DAYS = 1000, 300
+MAX_DAYS, DEFAULT_DAYS = 5000, 300
 STALE_DAYS = 4  # un fin de semana largo ya es normal; más que eso se marca
 DELAY_NOTE = "Cierres diarios de un proveedor gratuito: no son tiempo real y pueden tener retraso."
 
@@ -55,12 +55,25 @@ def _bars_from_rows(rows, days):
     ], provider
 
 
+def _merge_bars(technical, legacy):
+    """Conserva el historial anterior del mismo proveedor sin modificar ninguna tabla."""
+    if not technical:
+        return legacy
+    providers = defaultdict(list)
+    for row in technical:
+        providers[row.provider].append(row)
+    provider = max(providers, key=lambda key: len(providers[key]))
+    current = providers[provider]
+    earliest = current[0].date
+    previous = [row for row in legacy if row.provider == provider and row.date < earliest]
+    return previous + current
+
+
 def _bars_for(instrument_id, days):
-    """Velas diarias del instrumento, con preferencia por el historial aislado de Técnico."""
-    rows = list(TechnicalClose.objects.filter(instrument_id=instrument_id).order_by("date"))
-    if not rows:
-        rows = list(DailyClose.objects.filter(instrument_id=instrument_id).order_by("date"))
-    return _bars_from_rows(rows, days)
+    """Prioriza Técnico y conserva los cierres anteriores del mismo proveedor."""
+    technical = list(TechnicalClose.objects.filter(instrument_id=instrument_id).order_by("date"))
+    legacy = list(DailyClose.objects.filter(instrument_id=instrument_id).order_by("date"))
+    return _bars_from_rows(_merge_bars(technical, legacy), days)
 
 
 def _bulk_bars_for(instrument_ids, days):
@@ -68,10 +81,9 @@ def _bulk_bars_for(instrument_ids, days):
     technical, legacy = defaultdict(list), defaultdict(list)
     for row in TechnicalClose.objects.filter(instrument_id__in=ids).order_by("instrument_id", "date"):
         technical[row.instrument_id].append(row)
-    legacy_ids = set(ids) - technical.keys()
-    for row in DailyClose.objects.filter(instrument_id__in=legacy_ids).order_by("instrument_id", "date"):
+    for row in DailyClose.objects.filter(instrument_id__in=ids).order_by("instrument_id", "date"):
         legacy[row.instrument_id].append(row)
-    return {ident: _bars_from_rows(technical.get(ident) or legacy.get(ident, []), days) for ident in ids}
+    return {ident: _bars_from_rows(_merge_bars(technical.get(ident, []), legacy.get(ident, [])), days) for ident in ids}
 
 
 def _freshness(bars, provider):

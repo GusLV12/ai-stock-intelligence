@@ -87,9 +87,19 @@ def execute_run(run_id, provider=None):
         return
     provider = provider or YahooProvider(include_closed_today=True)
     instruments = _portfolio(run.user)
+    current_ids = {str(ins.pk) for ins in instruments}
+    current_tickers = {
+        ident.value.upper() for ins in instruments for ident in ins.identifiers.all() if ident.kind == "TICKER"
+    }
+    results = [
+        item for item in run.results
+        if (str(item["instrument_id"]) in current_ids if item.get("instrument_id")
+            else item.get("ticker", "").upper() in current_tickers)
+    ]
+    previous = {str(item.get("instrument_id") or item.get("ticker", "")).upper(): item for item in results}
     lease = run.started_at
     active = lambda: PortfolioHistoryRun.objects.filter(pk=run.pk, status="running", started_at=lease)
-    if not active().update(total=len(instruments), updated_at=timezone.now()):
+    if not active().update(total=len(instruments), results=results, updated_at=timezone.now()):
         return
     try:
         for instrument in instruments:
@@ -97,6 +107,11 @@ def execute_run(run_id, provider=None):
                 return
             entries = [entry for entry in instrument.identifiers.all() if entry.kind == "TICKER"]
             ticker = entries[0].value if entries else instrument.name
+            old = previous.get(str(instrument.pk)) or previous.get(ticker.upper())
+            if old and old.get("status") != "error":
+                continue
+            if old and old.get("attempts", 1) >= 3:
+                continue
             try:
                 if len(entries) != 1:
                     raise ProviderError("El instrumento no tiene un único ticker; requiere revisión.")
@@ -111,10 +126,15 @@ def execute_run(run_id, provider=None):
                 return
             except ProviderError as exc:
                 result = {"ticker": ticker, "status": "error", "message": str(exc)}
-            run.results = [*run.results, result]
-            if not active().update(results=run.results, updated_at=timezone.now()):
+            result["instrument_id"] = instrument.pk
+            result["attempts"] = old.get("attempts", 1) + 1 if old else 1
+            if old:
+                results[results.index(old)] = result
+            else:
+                results.append(result)
+            if not active().update(results=results, updated_at=timezone.now()):
                 return
-        run.status = "completed"
+        run.status = "partial" if any(item.get("status") == "error" for item in results) else "completed"
     except Exception:
         run.status = "failed"
         raise

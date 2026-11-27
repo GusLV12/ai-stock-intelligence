@@ -33,11 +33,14 @@ class Command(BaseCommand):
             if scheduled and scheduled.status == "running" and scheduled.updated_at < timezone.now() - timedelta(minutes=30):
                 PortfolioHistoryRun.objects.filter(pk=scheduled.pk, status="running").update(status="interrupted")
                 scheduled.refresh_from_db()
-            if scheduled and scheduled.status == "interrupted":
+            retry_partial = scheduled and scheduled.status == "partial" and any(
+                row.get("status") == "error" and row.get("attempts", 1) < 3 for row in scheduled.results
+            ) and scheduled.updated_at < timezone.now() - timedelta(minutes=15)
+            if scheduled and (scheduled.status == "interrupted" or retry_partial):
                 try:
                     with transaction.atomic():
-                        resumed = PortfolioHistoryRun.objects.filter(pk=scheduled.pk, status="interrupted").update(
-                            status="running", results=[], total=0, finished_at=None, started_at=timezone.now(), updated_at=timezone.now()
+                        resumed = PortfolioHistoryRun.objects.filter(pk=scheduled.pk, status=scheduled.status).update(
+                            status="running", finished_at=None, started_at=timezone.now(), updated_at=timezone.now()
                         )
                 except IntegrityError:
                     resumed = 0

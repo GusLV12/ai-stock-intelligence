@@ -1,0 +1,75 @@
+import { expect, test } from "@playwright/test";
+import { login, watchErrors } from "./helpers.mjs";
+
+test("en escritorio los resultados permanecen junto al gráfico", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await login(page);
+  await page.goto("/tecnico");
+  await expect(page.getByRole("img", { name: "Gráfica de precios con indicadores" })).toBeVisible();
+  const results = await page.locator(".technical-results").boundingBox();
+  const filters = await page.locator(".technical-filters").boundingBox();
+  expect(Math.abs(results.y - filters.y)).toBeLessThan(5);
+});
+
+test("filtros y dibujos de Técnico persisten con navegación accesible", async ({ page }, testInfo) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await page.goto("/tecnico");
+  await expect(page.getByRole("heading", { name: "Terminal técnica" })).toBeVisible();
+  await expect(page.getByText("Filtros técnicos", { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Gráfica de precios con indicadores" })).toBeVisible();
+  await page.getByRole("button", { name: "Buscar emisora" }).click();
+  await page.getByLabel("Buscar por símbolo o nombre").fill("AAA");
+  await expect(page.getByRole("button", { name: /Agregar a seguimiento AAA/ })).toBeVisible();
+  await page.getByRole("button", { name: /Agregar a seguimiento AAA/ }).click();
+  await expect(page.getByRole("button", { name: /Quitar de seguimiento AAA/ }).first()).toBeVisible();
+  await page.getByRole("button", { name: /Quitar de seguimiento AAA/ }).first().click();
+  await page.getByRole("button", { name: "Cerrar buscador" }).click();
+  await expect(page.getByRole("button", { name: /AAA.*USD/ })).toBeVisible();
+  await page.getByLabel("RSI mínimo").fill("0");
+  await page.getByLabel("Volumen promedio mínimo (títulos, 20 sesiones)").fill("1");
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await expect(page.getByRole("button", { name: /AAA.*USD/ })).toBeVisible();
+  await page.getByText(/Dibujos personales/).click();
+  await page.getByText("Introducir puntos con teclado").click();
+  await page.getByLabel("Precio inicial").fill("100");
+  await page.getByRole("button", { name: "Guardar dibujo" }).click();
+  await expect(page.getByText("Dibujo guardado.")).toBeVisible();
+  await page.getByRole("button", { name: "3M", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Nivel:/ })).toBeVisible();
+  await page.reload();
+  await page.getByText(/Dibujos personales/).click();
+  await expect(page.getByRole("button", { name: /^Nivel:/ })).toBeVisible();
+  await page.getByRole("button", { name: /Eliminar dibujo/ }).click();
+  await expect(page.getByText("Dibujo eliminado.")).toBeVisible();
+  await page.getByRole("button", { name: "Nivel horizontal", exact: true }).click();
+  await page.getByRole("img", { name: "Gráfica de precios con indicadores" }).click({ position: { x: 200, y: 90 } });
+  await expect(page.getByText("Dibujo guardado.")).toBeVisible();
+  await page.getByRole("button", { name: /Eliminar dibujo/ }).click();
+  await page.screenshot({ path: testInfo.outputPath("tecnico-escritorio.png"), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.getByRole("heading", { name: "Terminal técnica" })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("tecnico-movil.png"), fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("en móvil los paneles se pliegan y el gráfico permanece accesible", async ({ page }, testInfo) => {
+  const errors = watchErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await login(page);
+  await page.goto("/tecnico");
+  await expect(page.locator("details.technical-filters")).not.toHaveAttribute("open", "");
+  await expect(page.getByRole("img", { name: "Gráfica de precios con indicadores" })).toBeVisible();
+  await page.getByRole("button", { name: "Buscar emisora" }).click();
+  await page.getByLabel("Buscar por símbolo o nombre").fill("AAA");
+  await expect(page.getByRole("button", { name: /Agregar a seguimiento AAA/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Buscar emisora" })).toBeFocused();
+  await page.getByText("Filtros técnicos", { exact: true }).click();
+  await expect(page.getByLabel("Universo")).toBeVisible();
+  await page.getByText("Filtros técnicos", { exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("tecnico-movil-plegado.png"), fullPage: true });
+  expect(errors).toEqual([]);
+});

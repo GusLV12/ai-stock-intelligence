@@ -127,7 +127,7 @@ function Daily({ ticker, instrumentId, currency, symbols, refreshVersion }) {
   useEffect(() => {
     if (!ticker) return undefined;
     let alive = true;
-    api(`/api/v1/technical/analyze?ticker=${encodeURIComponent(ticker)}&instrument_id=${instrumentId}&days=1000`)
+    api(`/api/v1/technical/analyze?ticker=${encodeURIComponent(ticker)}&instrument_id=${instrumentId}&days=5000`)
       .then((d) => { if (alive) setState({ status: "ready", data: d }); })
       .catch((err) => { if (alive && !guard(err)) setState({ status: "error", message: err.message }); });
     return () => { alive = false; };
@@ -193,7 +193,7 @@ function Daily({ ticker, instrumentId, currency, symbols, refreshVersion }) {
       </div>
       <div className="technical-range" aria-label="Rango visible">
         <span>Rango visible:</span>{[[22, "1M"], [66, "3M"], [252, "1A"], [0, "Todo"]].map(([value, label]) => <button key={label} type="button" className={range === value ? "" : "ghost"} aria-pressed={range === value} onClick={() => setRange(value)}>{label}</button>)}
-        <span className="muted small">Indicadores calculados con historial previo disponible.</span>
+        <span className="muted small">Indicadores calculados con historial previo disponible; máximo 5,000 sesiones.</span>
       </div>
       <PriceChart data={chartData} overlays={overlays} panes={panes} height={panes.rsi || panes.macd || panes.volume ? 560 : 420} drawings={drawings} selectedDrawing={selectedDrawing} range={range} onPoint={drawingMode ? chartPoint : undefined} />
       <details className="technical-drawings">
@@ -619,7 +619,7 @@ export default function Terminal() {
       {tab === "daily" && <>
         <div className="row-actions">
           <button type="button" onClick={refreshPortfolio} disabled={refreshRun?.status === "running"}>Actualizar acciones de mi cartera</button>
-          {refreshRun && <span role="status">{refreshRun.status === "running" ? `Actualizando ${refreshRun.results.length} de ${refreshRun.total}…` : `Último intento: ${new Date(refreshRun.finished_at || refreshRun.started_at).toLocaleString("es-MX")} · ${{ completed: "finalizado", failed: "falló", interrupted: "interrumpido" }[refreshRun.status] ?? refreshRun.status}`}</span>}
+          {refreshRun && <span role="status">{refreshRun.status === "running" ? `Actualizando o reintentando · ${refreshRun.results.length} resultados registrados de ${refreshRun.total}…` : `Último intento: ${new Date(refreshRun.finished_at || refreshRun.started_at).toLocaleString("es-MX")} · ${{ completed: "finalizado", partial: "finalizado con errores; revisa los resultados", failed: "falló", interrupted: "interrumpido; puedes volver a intentarlo" }[refreshRun.status] ?? refreshRun.status}`}</span>}
           {refreshError && <span className="error" role="alert">{refreshError}</span>}
         </div>
         {refreshRun?.results?.length > 0 && <details><summary>Resultado por emisora ({refreshRun.results.length})</summary><ul>{refreshRun.results.map((r, i) => <li key={`${r.ticker}-${i}`}>{r.ticker}: {r.status === "updated" ? "actualizada" : r.status === "unchanged" ? "sin cambios" : `error: ${r.message}`} {r.last_bar && `· ${r.provider} · última vela ${r.last_bar}`}</li>)}</ul></details>}

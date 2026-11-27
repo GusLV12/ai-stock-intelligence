@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
@@ -14,7 +15,8 @@ from .portfolio_refresh import create_run
 def serialize(run):
     if run is None:
         return None
-    return {"id": run.pk, "status": run.status, "source": run.source, "started_at": run.started_at,
+    status = "interrupted" if run.status == "running" and run.updated_at < timezone.now() - timedelta(minutes=30) else run.status
+    return {"id": run.pk, "status": status, "source": run.source, "started_at": run.started_at,
             "finished_at": run.finished_at, "total": run.total, "results": run.results}
 
 

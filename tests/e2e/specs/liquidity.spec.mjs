@@ -16,7 +16,8 @@ test("Liquidez: tabla de la cartera y consulta de una orden hipotética, con lí
   await expect(page.getByRole("row", { name: /^BBB sin datos/ })).toBeVisible();
   await expect(page.getByText(/no es una garantía de ejecución/)).toBeVisible();
 
-  await page.getByRole("combobox", { name: "Emisora" }).selectOption("AAA");
+  const aaaValue = await page.locator("#sym option").filter({ hasText: "AAA" }).first().getAttribute("value");
+  await page.getByRole("combobox", { name: "Emisora" }).selectOption(aaaValue);
   await page.getByLabel("Títulos").fill("110");
   await page.getByRole("button", { name: "Calcular" }).click();
   await expect(page.getByText(/del volumen diario \(tamaño (visible|alto)\)/)).toBeVisible();
