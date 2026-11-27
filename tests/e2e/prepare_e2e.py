@@ -3,9 +3,18 @@
 import os
 import subprocess
 import sys
+import tempfile
+
+import openpyxl
 
 db = sys.argv[1]
 backend = os.environ["E2E_BACKEND_DIR"]
+fixture = openpyxl.Workbook()
+sheet = fixture.active
+sheet.append(["Mercado de Capitales USA"])
+sheet.append(["Emisora/Fondo", "Títulos", "Costo promedio", "Precio mercado", "PPP", "Valor mercado"])
+sheet.append(["AAA", 1, "$100.00", "$110.00", "-", "$110.00"])
+fixture.save(os.path.join(tempfile.gettempdir(), "asi-e2e-gbm_1794613125783.xlsx"))
 for suffix in ("", "-journal"):
     try:
         os.remove(db + suffix)
@@ -40,4 +49,4 @@ import_financials(rows, source="SEC_EDGAR")
 """
 subprocess.run([py, "manage.py", "shell", "-c", SEED_SEC], cwd=backend, check=True, stdout=subprocess.DEVNULL)  # estados con origen SEC (ficticios)
 subprocess.run([py, "manage.py", "shell", "-c", SEED_BARS], cwd=backend, check=True, stdout=subprocess.DEVNULL)  # historial ficticio de AAA
-sys.exit(subprocess.call([py, "manage.py", "runserver", "8010", "--noreload"], cwd=backend))  # sin execv: en Windows dejaría un proceso huérfano
+sys.exit(subprocess.call([py, "manage.py", "runserver", os.environ.get("E2E_BACKEND_PORT", "8010"), "--noreload"], cwd=backend))  # sin execv: en Windows dejaría un proceso huérfano

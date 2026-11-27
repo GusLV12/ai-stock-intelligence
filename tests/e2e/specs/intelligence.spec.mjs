@@ -1,0 +1,34 @@
+import { expect, test } from "@playwright/test";
+
+test("guía, exposición y secciones con teclado y movimiento reducido", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/inteligencia");
+  await expect(page.getByRole("heading", { name: "¿Para qué sirve esta vista?" })).toBeVisible();
+  await expect(page.getByText("Los escenarios son hipotéticos", { exact: false })).toBeVisible();
+  const exposure = page.getByRole("tab", { name: "Exposición" });
+  await expect(exposure).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("table", { name: "Por emisora" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Por clase de activo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "¿Para qué sirve la política?" })).toBeVisible();
+  await expect(page.getByText("Los porcentajes que dejes vacíos", { exact: false })).toBeVisible();
+  await page.getByText("Fuentes y antigüedad de los datos").click();
+  await expect(page.getByText("Efectivo reportado")).toBeVisible();
+  await page.getByLabel("Máximo por clase").fill("ETF:");
+  await page.getByRole("button", { name: "Guardar política" }).click();
+  await expect(page.getByText("Usa pares únicos", { exact: false })).toBeVisible();
+  await exposure.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Rebalanceo" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Calcular propuesta" })).toBeVisible();
+  await page.getByLabel("Objetivos (%)").fill("AAA:40, BBB:");
+  await page.getByRole("button", { name: "Calcular propuesta" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Usa pares únicos" })).toBeVisible();
+  await page.getByRole("tab", { name: "Rebalanceo" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Escenarios" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Riesgo histórico" }).click();
+  await expect(page.getByLabel("Ventana (días)")).toBeVisible();
+  await page.getByRole("tab", { name: "Tesis" }).click();
+  await expect(page.getByRole("button", { name: "Guardar tesis" })).toBeVisible();
+});

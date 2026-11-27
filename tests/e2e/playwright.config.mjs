@@ -17,12 +17,13 @@ const db = path.join(os.tmpdir(), "asi-e2e.sqlite3");
 export const DEMO_USER = "demo";
 export const DEMO_PASS = "e2e-only-demo-pass";
 export const STATE = path.join(here, ".auth-state.json");
-const BACK = 8010;
-const FRONT = 3010;
+const BACK = Number(process.env.E2E_BACKEND_PORT || 8010);
+const FRONT = Number(process.env.E2E_FRONTEND_PORT || 3010);
 
 const backendEnv = {
   DJANGO_DEBUG: "true",
   SQLITE_PATH: db,
+  E2E_BACKEND_PORT: String(BACK),
   DEMO_PASSWORD: DEMO_PASS,
   DJANGO_CSRF_TRUSTED_ORIGINS: `http://localhost:${FRONT}`,
 };
@@ -34,7 +35,7 @@ export default defineConfig({
     { name: "setup", testMatch: /setup\.mjs/ },
     {
       name: "app",
-      testMatch: /(portfolio|quant|paper|liquidity|screener)\.spec\.mjs/,
+      testMatch: /(portfolio|quant|paper|liquidity|screener|sales|technical|fair_value|intelligence)\.spec\.mjs/,
       dependencies: ["setup"],
       use: { storageState: STATE },
     },
@@ -58,7 +59,7 @@ export default defineConfig({
     {
       command: `npx next dev -p ${FRONT}`,
       cwd: web,
-      env: { BACKEND_URL: `http://127.0.0.1:${BACK}` },
+      env: { BACKEND_URL: `http://127.0.0.1:${BACK}`, E2E_NEXT_DIST: "1" },
       url: `http://localhost:${FRONT}/login`,
       reuseExistingServer: false,
       timeout: 180_000,
