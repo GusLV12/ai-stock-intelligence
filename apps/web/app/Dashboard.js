@@ -80,13 +80,14 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState("posiciones");
   const [currency, setCurrency] = useState("");
+  const [source, setSource] = useState("report");
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const me = await api("/api/v1/auth/me");
-        const data = await api("/api/v1/portfolio/dashboard");
+        const data = await api("/api/v1/portfolio/dashboard?source=report");
         if (alive) {
           setUser(me);
           setState({ status: "ready", data });
@@ -133,8 +134,18 @@ export default function Dashboard() {
   const topPositions = [...grouped].sort((a, b) => b[1] - a[1]).slice(0, 3);
 
   async function reloadDashboard() {
-    const refreshed = await api("/api/v1/portfolio/dashboard");
+    const refreshed = await api(`/api/v1/portfolio/dashboard${source === "report" ? "?source=report" : ""}`);
     setState({ status: "ready", data: refreshed });
+  }
+
+  async function changeSource(next) {
+    try {
+      const refreshed = await api(`/api/v1/portfolio/dashboard${next === "report" ? "?source=report" : ""}`);
+      setSource(next);
+      setState({ status: "ready", data: refreshed });
+    } catch (err) {
+      setState({ status: "error", message: err.message });
+    }
   }
 
   return (
@@ -168,6 +179,14 @@ export default function Dashboard() {
 
       {view === "gbm" ? <GbmImport onImported={reloadDashboard} /> : (
       <MotionPanel className="portfolio-overview">
+      <div className="actions" aria-label="Fuente de posiciones">
+        <button type="button" className={source === "report" ? "" : "ghost"} onClick={() => changeSource("report")} aria-pressed={source === "report"}>Último reporte GBM</button>
+        <button type="button" className={source === "ledger" ? "" : "ghost"} onClick={() => changeSource("ledger")} aria-pressed={source === "ledger"}>Libro contable</button>
+      </div>
+      {data.report ? <div className="notice warn" role="status">
+        Posiciones y precios del reporte GBM del {new Date(data.report.as_of).toLocaleString("es-MX")}; no incluyen movimientos posteriores. El libro y otras vistas pueden diferir.
+        {data.report.previous_as_of && <p>Cambios frente al reporte del {new Date(data.report.previous_as_of).toLocaleString("es-MX")}: {data.report.changes.length ? data.report.changes.map((c) => `${c.ticker}: ${c.previous} → ${c.current}${c.kind === "ausente" ? " (ya no reportada)" : c.kind === "disminucion" ? " (disminuyó)" : " (aumentó)"}`).join("; ") : "sin cambios de cantidad"}. Una disminución no confirma una venta; el historial y la ganancia realizada requieren los movimientos.</p>}
+      </div> : source === "report" && <p className="notice">No hay un reporte GBM único disponible para esta vista; se muestra el libro contable.</p>}
       {currencies.length > 1 && <label className="portfolio-currency">Moneda del resumen
         <select value={cur} onChange={(e) => setCurrency(e.target.value)}>{currencies.map((c) => <option key={c}>{c}</option>)}</select>
       </label>}
@@ -181,7 +200,7 @@ export default function Dashboard() {
         <>
           <section className="portfolio-stats" aria-label="Resumen">
             <Stat label="Valor de mercado" value={portfolioMoney(t.market_value, cur)} featured />
-            <Stat label="Costo" value={portfolioMoney(t.cost_basis, cur)} />
+            <Stat label={data.report ? "Costo aproximado del reporte" : "Costo"} value={portfolioMoney(t.cost_basis, cur)} />
             <Stat
               label="Ganancia no realizada"
               value={signedMoney(t.unrealized_pnl, cur)}

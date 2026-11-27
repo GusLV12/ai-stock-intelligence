@@ -114,7 +114,9 @@ export async function apiDownload(path, body) {
 export async function apiUpload(path, file, fields = {}) {
   const token = await csrfToken();
   const form = new FormData();
-  form.append("file", file);
+  if (Array.isArray(file)) {
+    for (const item of file) form.append("files", item);
+  } else form.append("file", file);
   for (const [name, value] of Object.entries(fields)) form.append(name, String(value));
   let res;
   try {

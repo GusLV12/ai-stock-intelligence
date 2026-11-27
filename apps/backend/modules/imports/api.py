@@ -1,5 +1,7 @@
+import hashlib
 from datetime import datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from django.http import HttpResponse
 from rest_framework import serializers, status
@@ -10,8 +12,10 @@ from rest_framework.views import APIView
 
 from modules.accounts.models import InvestmentAccount
 
+from .drivewealth import preview_drivewealth
 from .exports import export_csv, export_json
 from .models import ImportBatch, PositionSnapshot
+from .pending import pending_sales
 from .services import ImportError_, confirm_import, preview_import
 from .snapshots import apply_opening_balances, import_snapshot, reconcile
 
@@ -161,6 +165,103 @@ class SnapshotReconciliationView(APIView):
     def get(self, request, pk):
         snap = _get_snapshot(request, pk)
         return Response(_snapshot_data(snap, reconcile(snap)))
+
+
+class PendingSnapshotSalesView(APIView):
+    def get(self, request):
+        account = _own_account(request, request.query_params.get("account"))
+        if account.broker != InvestmentAccount.Broker.GBM_USA:
+            raise serializers.ValidationError({"account": "Selecciona una cuenta GBM Trading USA."})
+        return Response({"account": account.id, "pending": pending_sales(account)})
+
+
+class DriveWealthPreviewView(APIView):
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        account = _own_account(request, request.data.get("account"))
+        if account.broker != InvestmentAccount.Broker.GBM_USA:
+            raise serializers.ValidationError({"account": "Selecciona una cuenta GBM Trading USA."})
+        upload = request.FILES.get("file")
+        if upload is None or upload.size > MAX_UPLOAD_BYTES:
+            raise serializers.ValidationError({"file": "Adjunta un PDF de hasta 5 MB."})
+        try:
+            data = preview_drivewealth(upload.read())
+        except ImportError_ as exc:
+            raise serializers.ValidationError({"detail": str(exc)}) from exc
+        pending = pending_sales(account)
+        for row in data["rows"]:
+            row["candidates"] = [
+                item["id"]
+                for item in pending
+                if row["operation"] == "SELL"
+                and row["ticker"] == item["ticker"]
+                and item["previous_as_of"].astimezone(ZoneInfo("America/Mexico_City")).date().isoformat()
+                <= row["trade_date"]
+                <= item["current_as_of"].astimezone(ZoneInfo("America/Mexico_City")).date().isoformat()
+                and Decimal(row["quantity"]) <= Decimal(item["quantity"])
+            ]
+        return Response({"account": account.id, **data})
+
+
+class DriveWealthMultiPreviewView(APIView):
+    """Revisión múltiple en memoria; no almacena archivos ni crea asientos."""
+
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        account = _own_account(request, request.data.get("account"))
+        if account.broker != InvestmentAccount.Broker.GBM_USA:
+            raise serializers.ValidationError({"account": "Selecciona una cuenta GBM Trading USA."})
+        files = request.FILES.getlist("files")
+        if not files or len(files) > 20 or sum(f.size for f in files) > 30 * 1024 * 1024:
+            raise serializers.ValidationError({"files": "Adjunta entre 1 y 20 PDF, hasta 30 MB en total."})
+        pending = pending_sales(account)
+        documents = []
+        seen_files = {}
+        seen_rows = {}
+        for index, upload in enumerate(files):
+            try:
+                if upload.size > MAX_UPLOAD_BYTES:
+                    raise ImportError_("El archivo supera 5 MB.")
+                content = upload.read()
+                fingerprint = hashlib.sha256(content).hexdigest()
+                duplicate_file = seen_files.get(fingerprint)
+                seen_files.setdefault(fingerprint, index)
+                data = preview_drivewealth(content)
+                for row in data["rows"]:
+                    key = (
+                        row.get("trade_date"),
+                        row.get("operation"),
+                        row.get("ticker"),
+                        Decimal(row["quantity"]),
+                        Decimal(row["price"]),
+                        row.get("currency"),
+                    )
+                    row["possible_duplicate"] = key in seen_rows and seen_rows[key] != index
+                    seen_rows.setdefault(key, index)
+                    row["candidates"] = [
+                        item["id"]
+                        for item in pending
+                        if row["operation"] == "SELL"
+                        and row["ticker"] == item["ticker"]
+                        and item["previous_as_of"]
+                        .astimezone(ZoneInfo("America/Mexico_City"))
+                        .date()
+                        .isoformat()
+                        <= row["trade_date"]
+                        <= item["current_as_of"]
+                        .astimezone(ZoneInfo("America/Mexico_City"))
+                        .date()
+                        .isoformat()
+                        and Decimal(row["quantity"]) <= Decimal(item["quantity"])
+                    ]
+                documents.append(
+                    {"index": index, "name": upload.name, "duplicate_of": duplicate_file, **data}
+                )
+            except ImportError_ as exc:
+                documents.append({"index": index, "name": upload.name, "error": str(exc)})
+        return Response({"account": account.id, "documents": documents})
 
 
 class SnapshotOpeningView(APIView):

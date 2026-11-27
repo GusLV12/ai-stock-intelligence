@@ -153,6 +153,22 @@ class BanxicoFixProvider:
 
     def fetch_fix(self) -> tuple[Decimal, datetime]:
         data = self._http(self.URL, headers={"Bmx-Token": self._token, "Accept": "application/json"})
+        return self._parse_fix(data)
+
+    def fetch_fix_for_date(self, day) -> tuple[Decimal, datetime]:
+        """FIX determinado en la fecha exacta; no presupone publicación ni aplicación fiscal."""
+        if not hasattr(day, "isoformat") or isinstance(day, datetime):
+            raise ProviderError("Fecha de consulta inválida.")
+        text = day.isoformat()
+        url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{self.SERIES}/datos/{text}/{text}"
+        data = self._http(url, headers={"Bmx-Token": self._token, "Accept": "application/json"})
+        rate, observed = self._parse_fix(data)
+        if observed.date() != day:
+            raise ProviderError("Banxico no devolvió un dato para la fecha solicitada.")
+        return rate, observed
+
+    @staticmethod
+    def _parse_fix(data):
         try:
             datos = data["bmx"]["series"][0]["datos"][0]
             raw_rate, raw_date = datos["dato"], datos["fecha"]
@@ -182,7 +198,12 @@ class YahooProvider:
     MAX_FUTURE = 300  # segundos de tolerancia con relojes desfasados
 
     def __init__(
-        self, http=http_get_json, sleep=time.sleep, clock=time.monotonic, pause: float = 0.3, now=None,
+        self,
+        http=http_get_json,
+        sleep=time.sleep,
+        clock=time.monotonic,
+        pause: float = 0.3,
+        now=None,
         include_closed_today: bool = False,
     ):
         self._http, self._sleep, self._clock = http, sleep, clock
@@ -357,8 +378,11 @@ class YahooProvider:
             regular = periods.get("regular", {}) if isinstance(periods, dict) else {}
             try:
                 end = datetime.fromtimestamp(int(regular["end"]), UTC)
-                closed_today = (self._include_closed_today and end <= self._now()
-                                and (end + timedelta(seconds=offset)).date() == today_local)
+                closed_today = (
+                    self._include_closed_today
+                    and end <= self._now()
+                    and (end + timedelta(seconds=offset)).date() == today_local
+                )
             except (KeyError, TypeError, ValueError, OverflowError, OSError):
                 closed_today = False
             if value <= 0 or day > today_local or (day == today_local and not closed_today):

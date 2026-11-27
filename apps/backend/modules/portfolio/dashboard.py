@@ -194,6 +194,134 @@ def _instrument(pk):
     return Instrument.objects.get(pk=pk)
 
 
+def report_dashboard(user):
+    """Vista de una fotografía GBM, sin modificar ni completar el libro contable."""
+    accounts = list(InvestmentAccount.objects.filter(owner=user))
+    if len(accounts) != 1 or accounts[0].broker != InvestmentAccount.Broker.GBM_USA:
+        return None
+    snapshots = PositionSnapshot.objects.filter(account=accounts[0]).order_by("-as_of", "-id")
+    snapshot = snapshots.first()
+    if snapshot is None:
+        return None
+    # En caso de fechas iguales no se puede afirmar qué reporte es posterior.
+    if snapshots.filter(as_of=snapshot.as_of).count() != 1:
+        return None
+    previous = snapshots.filter(as_of__lt=snapshot.as_of).first()
+    lines = list(snapshot.lines.all())
+    before = {line.ticker: line.quantity for line in previous.lines.all()} if previous else {}
+    after = {line.ticker: line.quantity for line in lines}
+    changes = []
+    if previous:
+        for ticker in sorted(before.keys() | after.keys()):
+            old, new = before.get(ticker, ZERO), after.get(ticker, ZERO)
+            if old != new:
+                changes.append(
+                    {
+                        "ticker": ticker,
+                        "previous": str(old),
+                        "current": str(new),
+                        "kind": "ausente" if new == 0 else "disminucion" if new < old else "aumento",
+                    }
+                )
+
+    active = [line for line in lines if line.quantity > 0]
+    costs_complete = all(line.average_cost is not None for line in active)
+    prices_complete = all(line.market_price is not None for line in active)
+    total_value = sum(
+        (line.quantity * line.market_price for line in active if line.market_price is not None), ZERO
+    )
+    total_cost = sum(
+        (line.quantity * line.average_cost for line in active if line.average_cost is not None), ZERO
+    )
+    rows = []
+    for line in active:
+        value = line.quantity * line.market_price if line.market_price is not None else None
+        cost = line.quantity * line.average_cost if line.average_cost is not None else None
+        profit = value - cost if value is not None and cost is not None else None
+        rows.append(
+            {
+                "ticker": line.ticker,
+                "currency": snapshot.cash_currency,
+                "quantity": format(line.quantity.normalize(), "f"),
+                "average_cost": _q(line.average_cost),
+                "cost_basis": _q(cost),
+                "market_price": _q(line.market_price),
+                "market_value": _q(value),
+                "price_provider": "GBM_REPORT" if line.market_price is not None else None,
+                "price_observed_at": snapshot.as_of if line.market_price is not None else None,
+                "price_age_hours": _age_hours(timezone.now(), snapshot.as_of)
+                if line.market_price is not None
+                else None,
+                "unrealized_pnl": _q(profit),
+                "unrealized_pct": _q(profit / cost * 100) if profit is not None and cost else None,
+                "weight_pct": _q(value / total_value * 100)
+                if value is not None and total_value and prices_complete
+                else None,
+                "realized_pnl": None,
+            }
+        )
+    rows.sort(key=lambda row: Decimal(row["market_value"] or "0"), reverse=True)
+    cur = snapshot.cash_currency
+    pnl = total_value - total_cost if costs_complete and prices_complete else None
+    totals = {
+        cur: {
+            "cost_basis": _q(total_cost) if costs_complete else None,
+            "market_value": _q(total_value) if prices_complete else None,
+            "unrealized_pnl": _q(pnl),
+            "unrealized_pct": _q(pnl / total_cost * 100) if pnl is not None and total_cost else None,
+            "realized_pnl": None,
+            "cash": _q(snapshot.cash_amount),
+            "cash_observed_at": snapshot.as_of if snapshot.cash_amount is not None else None,
+            "cash_complete": snapshot.cash_amount is not None,
+        }
+    }
+    fx = None
+    if cur == "USD" and (rate := latest_fx("USD", "MXN")):
+        total_mxn = (
+            (total_value + snapshot.cash_amount) * rate.rate
+            if prices_complete and snapshot.cash_amount is not None
+            else None
+        )
+        fx = {
+            "pair": "USD/MXN",
+            "rate": str(rate.rate.normalize()),
+            "provider": rate.provider,
+            "observed_at": rate.observed_at,
+            "is_fallback": rate.provider in FALLBACK_PROVIDERS,
+            "total_value_mxn": _q(total_mxn),
+        }
+    has_prices = any(line.market_price is not None for line in active)
+    return {
+        "prices": {
+            "providers": ["GBM_REPORT"] if has_prices else [],
+            "uses_fallback": False,
+            "newest_at": snapshot.as_of if has_prices else None,
+            "oldest_at": snapshot.as_of if has_prices else None,
+            "oldest_age_hours": _age_hours(timezone.now(), snapshot.as_of) if has_prices else None,
+        },
+        "fx": fx,
+        "performance": {
+            cur: {
+                "xirr_pct": None,
+                "reason": "No evaluable con una fotografía de posiciones: faltan los movimientos conciliados.",
+            }
+        },
+        "totals_by_currency": totals,
+        "positions": rows,
+        "unpriced_positions": sum(line.market_price is None for line in active),
+        "report": {
+            "as_of": snapshot.as_of,
+            "previous_as_of": previous.as_of if previous else None,
+            "changes": changes,
+        },
+        "disclaimer": "Posiciones, precios y costos aproximados del reporte GBM; no incluyen movimientos posteriores. Las variaciones no prueban ventas ni resultados realizados.",
+    }
+
+
 class DashboardView(APIView):
     def get(self, request):
+        if request.query_params.get("source") == "report":
+            data = report_dashboard(request.user)
+            if data is not None:
+                return Response(data)
         return Response(build_dashboard(request.user))

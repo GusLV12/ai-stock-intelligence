@@ -17,7 +17,11 @@ class QuotaUnavailable(Exception):
 
 
 def reserve(provider):
-    limits = {"TWELVE_DATA": ("TWELVE_DATA_PER_MINUTE", 8), "YAHOO_UNOFFICIAL": ("YAHOO_PER_MINUTE", 30)}
+    limits = {
+        "TWELVE_DATA": ("TWELVE_DATA_PER_MINUTE", 8),
+        "YAHOO_UNOFFICIAL": ("YAHOO_PER_MINUTE", 30),
+        "BANXICO_FIX": ("BANXICO_PER_MINUTE", 10),
+    }
     env, default = limits[provider]
     try:
         limit = max(1, min(int(os.getenv(env, str(default))), 1000))

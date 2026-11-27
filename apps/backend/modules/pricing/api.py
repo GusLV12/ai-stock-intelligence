@@ -1,4 +1,5 @@
-from datetime import datetime
+import os
+from datetime import date, datetime
 from decimal import Decimal
 
 from django.utils import timezone
@@ -10,6 +11,7 @@ from rest_framework.views import APIView
 from modules.instruments.models import Instrument
 
 from .models import FxRate, MarketPrice
+from .providers import BanxicoFixProvider, ProviderError, reserve_provider
 from .services import PricingError, latest_fx, latest_price, record_fx, record_price
 
 MANUAL = "MANUAL"  # por API solo se aceptan observaciones manuales: la procedencia no se falsifica
@@ -104,3 +106,44 @@ class FxView(APIView):
         except PricingError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
         return Response(_fx_data(fx), status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class HistoricalFixView(APIView):
+    """FIX de una fecha exacta; referencia, sin decidir el tipo de cambio fiscal."""
+
+    def post(self, request):
+        try:
+            day = date.fromisoformat(str(request.data.get("date", "")))
+        except ValueError as exc:
+            raise serializers.ValidationError({"date": "Usa una fecha AAAA-MM-DD."}) from exc
+        if day > timezone.localdate():
+            raise serializers.ValidationError({"date": "No se puede consultar una fecha futura."})
+        cached = FxRate.objects.filter(
+            base="USD", quote="MXN", provider="BANXICO_FIX", observed_at__date=day
+        ).first()
+        if cached is None:
+            token = os.getenv("BANXICO_TOKEN", "").strip()
+            if not token:
+                return Response(
+                    {"available": False, "requested_date": day, "reason": "Falta configurar Banxico."}
+                )
+            try:
+                reserve_provider("BANXICO_FIX")
+                rate, observed = BanxicoFixProvider(token).fetch_fix_for_date(day)
+                cached, _ = record_fx("USD", "MXN", rate, "BANXICO_FIX", observed)
+            except ProviderError:
+                return Response(
+                    {
+                        "available": False,
+                        "requested_date": day,
+                        "reason": "Banxico no devolvió un dato verificable para esta fecha.",
+                    }
+                )
+        return Response(
+            {
+                "available": True,
+                "requested_date": day,
+                **_fx_data(cached),
+                "note": "FIX determinado en la fecha indicada. No identifica la publicación en DOF ni el tipo fiscal aplicable.",
+            }
+        )

@@ -3,8 +3,6 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import SimpleRouter
 
-from modules.technical.refresh_api import PortfolioHistoryRefreshView
-
 from modules.accounts.api import AccountViewSet
 from modules.assistant.api import ChatView
 from modules.calculators.api import CagrView, TargetBuyPriceView
@@ -13,10 +11,13 @@ from modules.fundamentals.api import ImportView as FundamentalsImportView
 from modules.fundamentals.api import InstrumentFinancialsView
 from modules.fundamentals.screener_api import RunDetailView, RunListView, RunScreenView
 from modules.imports.api import (
+    DriveWealthMultiPreviewView,
+    DriveWealthPreviewView,
     ExportView,
     ImportConfirmView,
     ImportDetailView,
     ImportsView,
+    PendingSnapshotSalesView,
     PositionsImportView,
     SnapshotOpeningView,
     SnapshotReconciliationView,
@@ -38,7 +39,7 @@ from modules.portfolio.api import (
     TransactionsView,
 )
 from modules.portfolio.dashboard import DashboardView
-from modules.pricing.api import FxView, PricesView
+from modules.pricing.api import FxView, HistoricalFixView, PricesView
 from modules.quant.api import (
     ExperimentDetailView,
     ExperimentsView,
@@ -51,13 +52,20 @@ from modules.technical.api import AnalyzeView, ScanView, SymbolsView, TradePlanV
 from modules.technical.explorer_api import DrawingDetailView, DrawingsView, ExplorerView
 from modules.technical.intraday_api import IntradayView
 from modules.technical.liquidity_api import LiquidityView, PortfolioLiquidityView
+from modules.technical.refresh_api import PortfolioHistoryRefreshView
 from modules.technical.search_api import (
     LoadMarketHistoryView,
     MarketSearchView,
     WatchlistDetailView,
     WatchlistView,
 )
-from modules.valuations.api import DcfView, FairValueDetailView, FairValuePreviewView, FairValueView, ReverseDcfView
+from modules.valuations.api import (
+    DcfView,
+    FairValueDetailView,
+    FairValuePreviewView,
+    FairValueView,
+    ReverseDcfView,
+)
 
 router = SimpleRouter(trailing_slash=False)
 router.register("accounts", AccountViewSet, basename="account")
@@ -86,7 +94,11 @@ urlpatterns = [
     path("api/v1/technical/symbols", SymbolsView.as_view(), name="technical-symbols"),
     path("api/v1/technical/market-search", MarketSearchView.as_view(), name="technical-market-search"),
     path("api/v1/technical/market-history", LoadMarketHistoryView.as_view(), name="technical-market-history"),
-    path("api/v1/technical/portfolio-history-refresh", PortfolioHistoryRefreshView.as_view(), name="technical-portfolio-history-refresh"),
+    path(
+        "api/v1/technical/portfolio-history-refresh",
+        PortfolioHistoryRefreshView.as_view(),
+        name="technical-portfolio-history-refresh",
+    ),
     path("api/v1/technical/watchlist", WatchlistView.as_view(), name="technical-watchlist"),
     path(
         "api/v1/technical/watchlist/<int:pk>",
@@ -142,7 +154,15 @@ urlpatterns = [
     path("api/v1/assistant/chat", ChatView.as_view(), name="assistant-chat"),
     path("api/v1/market/prices", PricesView.as_view(), name="market-prices"),
     path("api/v1/market/fx", FxView.as_view(), name="market-fx"),
+    path("api/v1/market/fx/historical-fix", HistoricalFixView.as_view(), name="historical-fix"),
     path("api/v1/imports/positions", PositionsImportView.as_view(), name="import-positions"),
+    path("api/v1/imports/pending-sales", PendingSnapshotSalesView.as_view(), name="pending-snapshot-sales"),
+    path("api/v1/imports/drivewealth/preview", DriveWealthPreviewView.as_view(), name="drivewealth-preview"),
+    path(
+        "api/v1/imports/drivewealth/preview-many",
+        DriveWealthMultiPreviewView.as_view(),
+        name="drivewealth-preview-many",
+    ),
     path(
         "api/v1/snapshots/<int:pk>/reconciliation", SnapshotReconciliationView.as_view(), name="snapshot-rec"
     ),
