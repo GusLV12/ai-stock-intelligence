@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createChart, LineSeries } from "lightweight-charts";
 import { api, ApiError } from "../lib/api";
 import { chartPalette } from "../lib/chartTheme";
+import { MotionPanel } from "../lib/Motion";
 
 const pct = (v, d = 1) => (v == null ? "—" : `${(Number(v) * 100).toFixed(d)} %`);
 const num = (v) => (typeof v !== "number" ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(3));
@@ -17,6 +18,16 @@ const VERDICTS = {
 };
 
 const palette = chartPalette;
+const MODEL_HELP = {
+  momentum_20: "Ordena por rendimiento de las últimas 20 sesiones.",
+  momentum_60: "Ordena por rendimiento de las últimas 60 sesiones.",
+  reversal_5: "Compara el comportamiento reciente en 5 sesiones.",
+  low_vol: "Favorece menor volatilidad histórica.",
+  random: "Control aleatorio para comparar la señal.",
+  ridge: "Regresión lineal con regularización.",
+  lightgbm: "Modelo de árboles que aprende de los factores.",
+  qlib_lgbm: "Usa Alpha158 y LightGBM en Qlib; tarda varios minutos.",
+};
 
 function useGuard() {
   const router = useRouter();
@@ -49,7 +60,7 @@ function EquityChart({ bt }) {
       const eq = bt[key].equity;
       chart.addSeries(LineSeries, { color, lineWidth: width, priceLineVisible: false, title: "" }).setData(bt.dates.map((t, i) => ({ time: t, value: (eq[i] / bt.config.capital) * 100 })));
     };
-    draw("benchmark_buy_hold", p.grid, 1);
+    draw("benchmark_buy_hold", p.c, 1);
     draw("benchmark_equal_weight", p.b, 2);
     draw("strategy", p.a, 2);
     chart.timeScale().fitContent();
@@ -98,6 +109,7 @@ function Detail({ id, onVerified }) {
       <div className="card">
         <h2 style={{ margin: 0 }}>{d.name} <span className="badge">{vLabel}</span></h2>
         <p className="muted small">{vText} Candidato: <strong>{cand.label}</strong> (elegido solo con la validación).</p>
+        <details className="quant-checks"><summary>Ver criterios y motivos del veredicto</summary>
         <ul className="pending-list">{r.promotion.reasons.map((x) => (<li key={x}>{x}</li>))}</ul>
         <div className="tablewrap">
           <table>
@@ -110,7 +122,25 @@ function Detail({ id, onVerified }) {
           </table>
         </div>
         <p className="muted small">Base de retorno: {(r.meta.return_basis?.raw ?? 0) === 0 ? "dividendos reinvertidos (cierre ajustado)" : `${r.meta.return_basis?.raw} de ${r.meta.universe.length} emisoras sin ajuste por dividendos`}. Intento {d.trials} sobre estos mismos datos: el umbral de t se endurece con cada intento adicional (pruebas múltiples).</p>
+        </details>
       </div>
+
+      <div className="quant-flow" aria-label="Flujo de evaluación">
+        <div><strong>1 · Entrenamiento</strong><span>Aprende con datos anteriores.</span></div>
+        <div><strong>2 · Validación</strong><span>Selecciona el candidato.</span></div>
+        <div><strong>3 · Prueba</strong><span>Evalúa fuera de muestra.</span></div>
+      </div>
+
+      {bt ? (
+        <div className="card quant-chart-card">
+          <h2>Simulación fuera de muestra · base 100</h2>
+          <p className="muted small">Periodo de prueba, neto de costos. No representa una inversión real.</p>
+          <EquityChart bt={bt} />
+          <div className="quant-legend"><span><i className="quant-dot strategy" /> Estrategia</span><span><i className="quant-dot equal" /> Universo igual</span><span><i className="quant-dot hold" /> Compra y mantén</span></div>
+          <p className="muted small">Top-{bt.config.top_k}, rebalanceo cada {bt.config.rebalance_days} sesiones. Costos por lado: {bt.config.costs.commission_bps + bt.config.costs.half_spread_bps + bt.config.costs.slippage_bps} pb. Rotación anual {pct(bt.strategy.turnover_one_way_annual, 0)}; costos pagados {pct(bt.strategy.cost_drag_pct_capital, 2)} del capital; caída máxima {pct(bt.strategy.max_drawdown)}.</p>
+          <ul className="pending-list">{bt.notes.map((n) => (<li key={n}>{n}</li>))}</ul>
+        </div>
+      ) : <div className="card quant-empty"><h2>Simulación fuera de muestra</h2><p className="muted">No hay una simulación disponible para este experimento.</p></div>}
 
       <div className="card">
         <h2>Capacidad predictiva por modelo</h2>
@@ -153,15 +183,6 @@ function Detail({ id, onVerified }) {
           </table>
         </div>
       </div>
-
-      {bt && (
-        <div className="card">
-          <h2>Simulación del candidato en el periodo de prueba (neta de costos)</h2>
-          <EquityChart bt={bt} />
-          <p className="muted small">Azul: estrategia (top-{bt.config.top_k}, rebalanceo cada {bt.config.rebalance_days} sesiones). Amarillo: universo en partes iguales con el mismo rebalanceo y costos. Gris: compra y mantén. Base 100. Costos por lado: {bt.config.costs.commission_bps + bt.config.costs.half_spread_bps + bt.config.costs.slippage_bps} pb. Rotación anual {pct(bt.strategy.turnover_one_way_annual, 0)}; costos pagados {pct(bt.strategy.cost_drag_pct_capital, 2)} del capital; caída máxima {pct(bt.strategy.max_drawdown)}.</p>
-          <ul className="pending-list">{bt.notes.map((n) => (<li key={n}>{n}</li>))}</ul>
-        </div>
-      )}
 
       {r.latest_scores.length > 0 && (
         <div className="card">
@@ -210,7 +231,7 @@ export default function QuantLab() {
   useEffect(() => {
     let alive = true;
     Promise.all([api("/api/v1/quant/overview"), api("/api/v1/quant/experiments")])
-      .then(([o, l]) => { if (alive) { setOverview(o); setList(l); } })
+      .then(([o, l]) => { if (alive) { setOverview(o); setList(l); setSelected((current) => current ?? l[0]?.id ?? null); } })
       .catch((err) => { if (alive && !guard(err)) setError(err.message); });
     return () => { alive = false; };
   }, [guard, reload]);
@@ -236,73 +257,51 @@ export default function QuantLab() {
   const small = overview && overview.universe.length < overview.criteria.min_universe;
 
   return (
-    <main className="wrap">
-      <header className="top">
-        <div>
-          <h1>Quant Lab</h1>
-          <p className="muted">Investigación cuantitativa con evaluación fuera de muestra.</p>
-        </div>
-        <nav className="actions" aria-label="Principal"><Link className="btn ghost" href="/">Portafolio</Link></nav>
+    <main className="wrap quant-page">
+      <header className="top quant-heading">
+        <div><p className="quant-eyebrow">INVESTIGACIÓN CUANTITATIVA</p><h1>Quant Lab</h1><p className="muted">Diseña, evalúa y compara experimentos históricos fuera de muestra.</p></div>
+        <nav className="actions" aria-label="Accesos de Quant Lab"><a className="quant-guide-link" href="#guia-quant">Guía de uso</a><Link className="btn ghost" href="/">Portafolio</Link></nav>
       </header>
       <p className="notice warn">{overview?.disclaimer ?? "Laboratorio de investigación: no es una recomendación de inversión."}</p>
       {error && <p role="alert" className="error">{error}</p>}
-
-      {overview && (
-        <section className="card" aria-label="Universo de datos">
-          <h2>Datos disponibles</h2>
-          <div className="stats">
-            <div className="card stat"><span className="label">Emisoras con historial</span><strong>{overview.universe.length}</strong><span className="sub">mínimo {overview.criteria.min_universe} para poder concluir</span></div>
-            <div className="card stat"><span className="label">Último cierre</span><strong>{overview.last_bar ?? "—"}</strong></div>
-            <div className="card stat"><span className="label">Qlib</span><strong>{overview.qlib_available ? "Disponible" : "No instalado"}</strong><span className="sub">Python 3.11 aislado en workers/qlib</span></div>
-            <div className="card stat"><span className="label">LightGBM</span><strong>{overview.lightgbm_available ? "Disponible" : "No instalado"}</strong><span className="sub">entorno aislado en workers/qlib</span></div>
-          </div>
-          {small && <p className="notice warn">Con {overview.universe.length} emisoras el laboratorio solo puede decir «datos insuficientes»: pocas emisoras no permiten distinguir señal de ruido. Descarga historial largo de más emisoras (<code>refresh_price_history --range 5y</code>) antes de interpretar resultados.</p>}
-        </section>
-      )}
-
-      <section className="card" aria-label="Nuevo experimento">
-        <h2>Nuevo experimento</h2>
-        <form onSubmit={run} className="stack">
-          <div className="row-actions">
-            <label className="field">Horizonte<select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>{(overview?.horizons ?? [5, 20]).map((h) => (<option key={h} value={h}>{h} sesiones</option>))}</select></label>
-            <label className="field">Semilla<input type="number" min="0" value={seed} onChange={(e) => setSeed(e.target.value)} /></label>
-            <label className="field">Bloques walk-forward<input type="number" min="1" max={overview?.max_folds ?? 8} value={folds} onChange={(e) => setFolds(e.target.value)} /></label>
-            <label className="field">Posiciones (top-K)<input type="number" min="1" max="20" value={topK} onChange={(e) => setTopK(e.target.value)} /></label>
-          </div>
-          <fieldset className="row-actions" style={{ border: 0, padding: 0 }}>
-            <legend className="muted small">Modelos (hace falta al menos uno que aprenda: ridge o LightGBM)</legend>
-            {(overview?.models ?? []).map((m) => (
-              <label key={m.id} className="small"><input type="checkbox" checked={chosen.includes(m.id)} onChange={() => toggle(m.id)} /> {m.label}{m.heavy ? " (lento: varios minutos)" : ""}{m.heavy && !overview.qlib_available ? " · no instalado" : ""}</label>
-            ))}
-          </fieldset>
-          <div className="row-actions">
+      {!overview && !error && <p role="status">Cargando datos del laboratorio…</p>}
+      {overview && <section className="quant-overview" aria-label="Universo de datos">
+        <h2 className="sr">Datos disponibles</h2>
+        <div className="quant-stat"><span>Emisoras con historial</span><strong>{overview.universe.length}</strong><small>Mínimo {overview.criteria.min_universe} para evaluar</small></div>
+        <div className="quant-stat"><span>Último cierre disponible</span><strong>{overview.last_bar ?? "—"}</strong><small>Fecha más reciente del universo</small></div>
+        <div className="quant-stat"><span>LightGBM</span><strong>{overview.lightgbm_available ? "Disponible" : "No instalado"}</strong><small>Modelo de árboles</small></div>
+        <div className="quant-stat"><span>Qlib</span><strong>{overview.qlib_available ? "Disponible" : "No instalado"}</strong><small>Modelo opcional</small></div>
+      </section>}
+      {small && <p className="notice warn">Con {overview.universe.length} emisoras el laboratorio solo puede decir «datos insuficientes»: se necesitan al menos {overview.criteria.min_universe} emisoras para evaluar.</p>}
+      <div className="quant-workspace">
+        <section className="card quant-config" aria-label="Nuevo experimento">
+          <div className="quant-panel-title"><span className="quant-symbol" aria-hidden="true">⚗</span><div><h2>Nuevo experimento</h2><p className="muted small">Define el horizonte, la evaluación y los modelos.</p></div></div>
+          <form onSubmit={run} className="quant-form">
+            <label className="quant-field"><span><strong>Horizonte</strong><small>Sesiones para medir el retorno posterior.</small></span><select value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>{(overview?.horizons ?? [5, 20]).map((h) => (<option key={h} value={h}>{h} sesiones</option>))}</select></label>
+            <label className="quant-field"><span><strong>Bloques walk-forward</strong><small>Periodos consecutivos de evaluación.</small></span><input type="number" min="1" max={overview?.max_folds ?? 8} value={folds} onChange={(e) => setFolds(e.target.value)} /></label>
+            <label className="quant-field"><span><strong>Posiciones (top-K)</strong><small>Emisoras seleccionadas al rebalancear.</small></span><input type="number" min="1" max="20" value={topK} onChange={(e) => setTopK(e.target.value)} /></label>
+            <label className="quant-field"><span><strong>Semilla</strong><small>Controla componentes aleatorios.</small></span><input type="number" min="0" value={seed} onChange={(e) => setSeed(e.target.value)} /></label>
+            <fieldset className="quant-models"><legend>Modelos a comparar</legend><p className="muted small">Incluye al menos un modelo que aprenda: ridge, LightGBM o Qlib.</p>
+              {(overview?.models ?? []).map((m) => <label key={m.id} className="quant-model"><input type="checkbox" checked={chosen.includes(m.id)} onChange={() => toggle(m.id)} /><span><strong>{m.label}</strong><small>{MODEL_HELP[m.id] ?? "Modelo de investigación."}{m.heavy && !overview.qlib_available ? " No instalado." : ""}</small></span></label>)}
+            </fieldset>
             <button type="submit" disabled={running || !overview}>{running ? "Entrenando y evaluando…" : "Correr experimento"}</button>
-            <span className="muted small">Cada experimento queda guardado e inmutable; los intentos repetidos sobre los mismos datos endurecen el criterio.</span>
-          </div>
-        </form>
-      </section>
-
-      <section className="card" aria-label="Experimentos">
-        <h2>Experimentos</h2>
-        {list.length === 0 ? (<p className="muted">Aún no hay experimentos.</p>) : (
-          <div className="tablewrap">
-            <table>
-              <thead><tr><th>#</th><th>Nombre</th><th>Horizonte</th><th>Candidato</th><th>Rank IC prueba</th><th>Veredicto</th><th /></tr></thead>
-              <tbody>
-                {list.map((e) => (
-                  <tr key={e.id}>
-                    <td>{e.id}</td><td>{e.name}</td><td>{e.horizon}</td><td>{e.candidate_label}</td><td>{ic(e.test_rank_ic)}</td>
-                    <td>{(VERDICTS[e.verdict] ?? [e.verdict])[0]}</td>
-                    <td><button type="button" className="ghost" onClick={() => setSelected(e.id)}>Ver</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {selected && <Detail key={selected} id={selected} onVerified={() => setReload((n) => n + 1)} />}
+            <p className="muted small">Cada intento se guarda y no se puede modificar. Repetirlo con los mismos datos endurece el criterio.</p>
+          </form>
+        </section>
+        <section className="quant-results" aria-label="Resultado del experimento">
+          <div className="quant-section-heading"><div><p className="quant-eyebrow">ANÁLISIS HISTÓRICO</p><h2>Resultado del experimento</h2></div><span className="muted small">Fuera de muestra</span></div>
+          {selected ? <MotionPanel key={selected}><Detail id={selected} onVerified={() => setReload((n) => n + 1)} /></MotionPanel> : <div className="card quant-empty"><h2>Sin experimento seleccionado</h2><p className="muted">Al ejecutar o seleccionar un experimento podrás revisar sus métricas, la simulación y su reproducibilidad.</p><p className="muted small">No se muestran resultados de ejemplo.</p></div>}
+        </section>
+        <aside className="quant-aside">
+          <section id="guia-quant" className="card quant-guide"><div className="quant-panel-title"><span className="quant-symbol" aria-hidden="true">ⓘ</span><div><h2>Guía rápida</h2><p className="muted small">Entiende cada paso antes de comenzar.</p></div></div>
+            <dl><dt>Horizonte</dt><dd>Sesiones posteriores sobre las que se mide el retorno.</dd><dt>Walk-forward</dt><dd>Entrena y valida con datos anteriores a cada bloque de prueba.</dd><dt>Top-K</dt><dd>Número de emisoras elegidas en cada rebalanceo simulado.</dd><dt>Rank IC</dt><dd>Relación entre el orden de los puntajes y el de los retornos posteriores. Cerca de cero indica poca señal.</dd></dl>
+            <details className="quant-guide-more"><summary>Ver guía completa</summary><ol><li><strong>Revisa los datos.</strong> Comprueba cuántas emisoras hay y la fecha del último cierre; los datos pueden tener retraso.</li><li><strong>Configura el experimento.</strong> Elige horizonte, bloques, posiciones y modelos; Qlib es opcional y tarda más.</li><li><strong>Compara con referencias.</strong> El candidato se elige en validación; la prueba y la simulación muestran resultados históricos fuera de muestra, con costos.</li><li><strong>Lee el veredicto.</strong> Abre sus criterios y limitaciones: un resultado favorable solo significa que merece seguimiento.</li><li><strong>Verifica reproducibilidad.</strong> Repite y compara las huellas para identificar si los datos o el resultado cambiaron.</li></ol><p>Las señales y rankings son de investigación, no instrucciones de compra. El rendimiento pasado no garantiza resultados futuros.</p></details>
+          </section>
+          <section className="card quant-experiments" aria-label="Experimentos"><h2>Experimentos</h2><p className="muted small">Selecciona uno para ver su resultado.</p>
+            {list.length === 0 ? <p className="muted">Aún no hay experimentos.</p> : <ul>{list.map((e) => <li key={e.id}><button type="button" className={selected === e.id ? "quant-experiment active" : "quant-experiment"} aria-pressed={selected === e.id} onClick={() => setSelected(e.id)}><span><strong>{e.name}</strong><small>{e.horizon} sesiones · {e.candidate_label}</small></span><span><strong>{(VERDICTS[e.verdict] ?? [e.verdict])[0]}</strong><small>Rank IC {ic(e.test_rank_ic)}</small></span></button></li>)}</ul>}
+          </section>
+        </aside>
+      </div>
     </main>
   );
 }

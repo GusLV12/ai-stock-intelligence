@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 from modules.instruments.models import Instrument, InstrumentIdentifier
 from modules.pricing.history_models import DailyClose
 
-from .models import QuantExperiment
+from .models import QuantExperiment, QuantUniverseMember
 
 BASE = "/api/v1/quant"
 
@@ -22,6 +22,7 @@ def sembrar(n_names=22, n=480, persistente=True, seed=7, provider="YAHOO_UNOFFIC
     ids = []
     for k in range(n_names):
         ins = Instrument.objects.create(asset_class="STOCK", name=f"E{k}", quantity_scale=8)
+        QuantUniverseMember.objects.create(instrument=ins)
         InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value=f"T{k}")
         drift = rng.uniform(-0.003, 0.003) if persistente else 0.0
         p, rows = 100.0, []
