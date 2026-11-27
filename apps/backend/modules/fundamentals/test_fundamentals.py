@@ -1,3 +1,4 @@
+import io
 from datetime import date
 from decimal import Decimal as D
 
@@ -5,6 +6,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import ProtectedError
+from openpyxl import Workbook, load_workbook
 from rest_framework.test import APIClient
 
 from modules.instruments.models import Instrument, InstrumentIdentifier
@@ -121,3 +123,32 @@ def test_api_errores_y_autenticacion(client, aaa):
     assert client.post("/api/v1/fundamentals/import", {"file": bad}, format="multipart").status_code == 400
     assert client.get("/api/v1/fundamentals/99999").status_code == 404
     assert APIClient().post("/api/v1/fundamentals/import", {}, format="json").status_code in (401, 403)
+
+
+def test_excel_importacion_plantilla_y_validacion_atomica(client, aaa):
+    template = client.get("/api/v1/fundamentals/import?format=xlsx")
+    assert template.status_code == 200
+    workbook = load_workbook(io.BytesIO(template.content))
+    assert workbook.active.cell(1, 1).value == "ticker"
+    workbook.close()
+
+    def file_for(rows):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["ticker", "fiscal_year", "period_end", "published_at", "revenue"])
+        for values in rows:
+            ws.append(values)
+        stream = io.BytesIO()
+        wb.save(stream)
+        return SimpleUploadedFile("estados.xlsx", stream.getvalue())
+
+    values = ["AAA", 2025, date(2025, 12, 31), date(2026, 2, 20), 1200]
+    url = "/api/v1/fundamentals/import"
+    response = client.post(url, {"file": file_for([values])}, format="multipart")
+    assert response.status_code == 201 and response.json()["created"] == 1
+    assert FinancialYear.objects.get().source == "XLSX"
+    assert client.post(url, {"file": file_for([values])}, format="multipart").json()["unchanged"] == 1
+    invalid = ["AAA", 2024, date(2024, 12, 31), date(2025, 2, 20), "=1+1"]
+    assert client.post(url, {"file": file_for([values, invalid])}, format="multipart").status_code == 400
+    assert FinancialYear.objects.count() == 1
+    assert client.post(url, {"file": SimpleUploadedFile("mal.xlsx", b"no es excel")}, format="multipart").status_code == 400

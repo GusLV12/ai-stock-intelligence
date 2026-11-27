@@ -108,6 +108,23 @@ def test_comision_por_operacion_reduce_los_fondos(world):
     )
 
 
+def test_misma_emisora_en_dos_cuentas_se_suma(world):
+    user, _ = world
+    other = InvestmentAccount.objects.create(owner=user, name="Segunda", broker="GBM_USA")
+    aaa = InstrumentIdentifier.objects.get(kind="TICKER", value="AAA").instrument
+    record_buy(account=other, instrument=aaa, quantity=D(2), price=D(100), executed_at=T0)
+    res = propose(load_holdings(user)["holdings"], TARGETS, contribution=D(200))
+    assert res["total_before_usd"] == D(1300)
+    assert trades(res)["AAA"]["current_value"] == D(800)
+    assert any("cuentas" in warning for warning in res["warnings"])
+
+
+def test_comision_sin_fondos_no_produce_efectivo_negativo(world):
+    holdings = [h for h in load_holdings(world[0])["holdings"] if h.ticker == "AAA"]
+    with pytest.raises(RebalanceError, match="comisiones"):
+        propose(holdings, {"AAA": D(0)}, allow_sells=True, commission_per_trade=D(1000))
+
+
 def test_posiciones_sin_objetivo_quedan_fijas_y_objetivos_desconocidos_se_ignoran(world):
     res = propose(
         load_holdings(world[0])["holdings"],

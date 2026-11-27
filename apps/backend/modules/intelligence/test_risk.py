@@ -209,6 +209,22 @@ def client_for(user):
     return c
 
 
+def test_riesgo_agrega_pesos_de_cuentas_repetidas(held, monkeypatch):
+    from . import risk_api
+
+    user, instruments = held
+    other = InvestmentAccount.objects.create(owner=user, name="Segunda", broker="GBM_USA")
+    record_buy(account=other, instrument=instruments["AAA"], quantity=D(2), price=D(100), executed_at=datetime(2026, 1, 1, tzinfo=UTC))
+    captured = {}
+    monkeypatch.setattr(risk_api, "_series_for", lambda *args: {})
+    def analyze(series, weights):
+        captured.update(weights)
+        return {"assets": {}, "warnings": []}
+    monkeypatch.setattr(risk_api.risk, "analyze", analyze)
+    risk_api.risk_report(user, 365)
+    assert captured["AAA"] == pytest.approx(0.6)
+
+
 def load_closes(ins, returns_):
     today = datetime.now(UTC).date()
     p, day = 100.0, today - timedelta(days=len(returns_) + 5)

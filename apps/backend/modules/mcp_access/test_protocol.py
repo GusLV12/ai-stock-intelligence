@@ -190,7 +190,9 @@ def test_las_herramientas_de_investigacion_exigen_su_scope_por_stdio(env):
     async def go(s):
         return await s.call_tool("technical_analysis", {"ticker": "AAA"})
 
-    res = run(env, env["all"], go)  # esta clave no tiene research:read (la de lectura simple se revoca en otra prueba)
+    res = run(
+        env, env["all"], go
+    )  # esta clave no tiene research:read (la de lectura simple se revoca en otra prueba)
     assert res.is_error and "research:read" in text(res)
 
     async def riesgo(s):

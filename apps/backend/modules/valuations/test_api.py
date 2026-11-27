@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal as D
 
 import pytest
@@ -30,7 +30,7 @@ def post(client, url, body):
 
 def test_fair_value_se_guarda_como_instantanea_y_se_recupera(client):
     r = post(client, "fair-value", {"instrument_class": "STOCK", "market_price": 80, "label": "AAA demo", "dcf": DCF,
-                                    "financials_as_of": "2999-01-01"})  # fmt: skip
+                                    "financials_as_of": date.today().isoformat()})  # fmt: skip
     assert r.status_code == 201, r.content
     d = r.json()
     assert d["methods"][0]["value_per_share"] == "100.000000" and d["margin_of_safety_base"] == "0.200000"
@@ -97,6 +97,30 @@ def test_calculadora_dcf_con_sensibilidad_no_guarda(client):
     assert d["applicable"] and d["value_per_share"] == "100.000000"
     assert len(d["sensitivity"]["value_per_share"]) == 5 and Valuation.objects.count() == 0
     assert post(client, "dcf", {**DCF, "wacc": "0.01", "terminal_growth": "0.02"}).status_code == 400
+
+
+def test_vista_previa_no_guarda_y_coincide_con_instantanea(client):
+    body = {"instrument_class": "STOCK", "market_price": "80", "dcf": DCF}
+    preview = post(client, "fair-value/preview", body)
+    assert preview.status_code == 200 and Valuation.objects.count() == 0
+    saved = post(client, "fair-value", body)
+    assert saved.status_code == 201 and Valuation.objects.count() == 1
+    assert all(saved.json()[key] == value for key, value in preview.json().items())
+    assert post(client, "fair-value/preview", {**body, "dcf": {**DCF, "wacc": "0"}}).status_code == 400
+    assert Valuation.objects.count() == 1
+    assert APIClient().post("/api/v1/valuations/fair-value/preview", body, format="json").status_code in (401, 403)
+
+
+def test_precio_registrado_rechaza_moneda_y_observacion_distintas(client):
+    ins = Instrument.objects.create(asset_class="STOCK", name="AAA")
+    moment = datetime(2026, 11, 13, tzinfo=UTC)
+    record_price(ins, D(80), "MANUAL", moment)
+    body = {"instrument": ins.id, "dcf": DCF, "currency": "USD", "expected_price_observed_at": moment.isoformat(), "expected_market_price": "80", "expected_price_provider": "MANUAL"}
+    preview = post(client, "fair-value/preview", body)
+    assert preview.status_code == 200 and preview.json()["price_source"]["provider"] == "MANUAL"
+    assert post(client, "fair-value", {**body, "currency": "MXN"}).status_code == 400
+    assert post(client, "fair-value", {**body, "expected_market_price": "81"}).status_code == 400
+    assert Valuation.objects.count() == 0
 
 
 def test_dcf_inverso_encuentra_el_crecimiento_implicito(client):

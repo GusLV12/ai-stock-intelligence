@@ -78,6 +78,18 @@ def test_agrupaciones_por_clase_sector_moneda_y_broker(world):
     assert "licencia" in d["etf_look_through"]["note"]
 
 
+def test_exposicion_agrega_cuentas_y_muestra_fuentes(world):
+    user, _, instruments = world
+    other = InvestmentAccount.objects.create(owner=user, name="Segunda", broker="GBM_USA")
+    record_buy(account=other, instrument=instruments["AAA"], quantity=D(2), price=D(100), executed_at=T0)
+    data = client_for(user).get("/api/v1/portfolio/exposure").json()
+    aaa = [p for p in data["positions"] if p["ticker"] == "AAA"]
+    assert len(aaa) == 1 and aaa[0]["value"] == "800.000000"
+    assert data["concentration"]["position_count"] == 4
+    assert len([p for p in data["provenance"]["prices"] if p["ticker"] == "AAA"]) == 2
+    assert any(c["account"] == "Segunda" and not c["available"] for c in data["provenance"]["cash_reports"])
+
+
 def test_politica_reporta_incumplimientos(world):
     user, _, _ = world
     c = client_for(user)

@@ -6,6 +6,7 @@ from decimal import Decimal as D
 import pytest
 from django.contrib.auth import get_user_model
 from django.db.models import ProtectedError
+from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
 from modules.instruments.models import Instrument, InstrumentIdentifier
@@ -226,6 +227,13 @@ def test_api_guarda_la_corrida_y_exporta_csv(world):
     assert resp.status_code == 200 and resp["Content-Type"].startswith("text/csv")
     rows = list(csv.reader(io.StringIO(resp.content.decode())))
     assert rows[0][0] == "ticker" and any(r[0] == "AAA" and r[1] == "si" for r in rows[1:])
+    excel = c.get(f"/api/v1/screeners/runs/{run_id}?format=xlsx")
+    assert excel.status_code == 200
+    workbook = load_workbook(io.BytesIO(excel.content), data_only=False)
+    assert next(iter(workbook.active.values))[0] == "ticker"
+    assert any(row[0] == "AAA" and row[1] == "si" for row in list(workbook.active.values)[1:])
+    assert workbook.active.cell(2, 5).data_type == "n"
+    workbook.close()
     assert c.get(f"/api/v1/screeners/runs/{run_id}?format=xml").status_code == 400
 
 
@@ -236,6 +244,7 @@ def test_api_valida_y_aisla_usuarios(world):
     run_id = c.post("/api/v1/screeners/fair-value", {}, format="json").json()["id"]
     otro = api_client(get_user_model().objects.create_user("beto", password="x"))
     assert otro.get(f"/api/v1/screeners/runs/{run_id}").status_code == 404
+    assert otro.get(f"/api/v1/screeners/runs/{run_id}?format=xlsx").status_code == 404
     assert otro.get("/api/v1/screeners/runs").json() == []
     # el otro usuario no tiene valoraciones: su margen es "sin dato"
     mine = otro.post("/api/v1/screeners/fair-value", {"min_margin_of_safety": "0.1"}, format="json").json()

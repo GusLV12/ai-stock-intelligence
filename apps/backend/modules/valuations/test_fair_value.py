@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from decimal import Decimal as D
 
 import pytest
@@ -17,9 +18,14 @@ def run(**kw):
         "instrument_class": "STOCK",
         "market_price": 80,
         "currency": "USD",
-        "financials_as_of": "2999-01-01",
+        "financials_as_of": date.today().isoformat(),
     }
     return asi_fair_value_v1({**base, **kw})
+
+
+def test_fecha_financiera_futura_se_rechaza():
+    with pytest.raises(ValuationError, match="futura"):
+        run(dcf=DCF, financials_as_of=(date.today() + timedelta(days=1)).isoformat())
 
 
 def test_dcf_con_escenarios_y_margen_de_seguridad():
