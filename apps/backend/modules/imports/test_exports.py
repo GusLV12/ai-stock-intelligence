@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal as D
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -47,3 +48,22 @@ def test_export_json_versionado(setup):
     assert len(data["transactions"]) == 3
     assert data["transactions"][0]["quantity"] == "3.5"
     assert data["transactions"][2]["quantity"] == "0.000001"
+
+
+def test_exportacion_preserva_saldo_de_apertura(setup):
+    from datetime import UTC, datetime
+
+    from modules.portfolio.models import Transaction
+    from modules.portfolio.services import record_buy
+
+    a, b, ins = setup
+    record_buy(
+        account=a,
+        instrument=ins,
+        quantity=D(1),
+        price=D(100),
+        executed_at=datetime(2026, 1, 1, tzinfo=UTC),
+        origin="OPENING",
+    )
+    confirm_import(preview_import(b, export_csv(a).encode()))
+    assert Transaction.objects.get(account=b).origin == "OPENING"

@@ -37,6 +37,69 @@ def test_dashboard_vacio(ctx):
     assert d["fx"] is None
 
 
+def test_varios_lotes_se_agregan_una_sola_vez(ctx):
+    client, acc = ctx
+    ins = make_stock("AAA")
+    record_buy(account=acc, instrument=ins, quantity=D(1), price=D(100), executed_at=T0)
+    record_buy(account=acc, instrument=ins, quantity=D(2), price=D(200), executed_at=REPORT)
+    record_price(ins, D(150), "MANUAL", REPORT)
+    d = client.get("/api/v1/portfolio/dashboard").json()
+    assert len(d["positions"]) == 1
+    assert d["totals_by_currency"]["USD"]["market_value"] == "450.00"
+    assert d["totals_by_currency"]["USD"]["cost_basis"] == "500.00"
+
+
+def test_pesos_por_moneda_y_efectivo_desconocido(ctx):
+    client, acc = ctx
+    usd = make_stock("USD_A")
+    mxn = Instrument.objects.create(asset_class="STOCK", name="MXN_A", currency="MXN", quantity_scale=8)
+    for ins in (usd, mxn):
+        record_buy(account=acc, instrument=ins, quantity=D(1), price=D(100), executed_at=T0)
+        record_price(ins, D(100), "MANUAL", REPORT)
+    d = client.get("/api/v1/portfolio/dashboard").json()
+    assert all(p["weight_pct"] == "100.00" for p in d["positions"])
+    assert d["totals_by_currency"]["USD"]["cash"] is None
+
+
+def test_sin_precios_no_presenta_valor_cero(ctx):
+    client, acc = ctx
+    ins = make_stock("SIN_PRECIO")
+    record_buy(account=acc, instrument=ins, quantity=D(1), price=D(100), executed_at=T0)
+    d = client.get("/api/v1/portfolio/dashboard").json()
+    assert d["unpriced_positions"] == 1
+    assert d["totals_by_currency"]["USD"]["market_value"] is None
+    assert d["totals_by_currency"]["USD"]["unrealized_pnl"] is None
+
+
+def test_efectivo_incompleto_no_se_suma_al_total_convertido(ctx):
+    client, acc = ctx
+    ins = make_stock("AAA")
+    record_buy(account=acc, instrument=ins, quantity=D(1), price=D(100), executed_at=T0)
+    record_price(ins, D(110), "MANUAL", REPORT)
+    record_fx("USD", "MXN", D(18), "MANUAL", REPORT)
+    PositionSnapshot.objects.create(account=acc, file_sha256="e" * 64, as_of=REPORT, cash_amount=D(5))
+    InvestmentAccount.objects.create(owner=acc.owner, name="Sin reporte", broker="GBM_USA")
+    d = client.get("/api/v1/portfolio/dashboard").json()
+    assert d["totals_by_currency"]["USD"]["cash_complete"] is False
+    assert d["fx"]["total_value_mxn"] is None
+
+
+def test_efectivo_moneda_diferente_a_base_no_es_completo_sin_reporte(ctx):
+    client, acc = ctx
+    otra = InvestmentAccount.objects.create(
+        owner=acc.owner, name="Cuenta MXN", broker="GBM_USA", base_currency="MXN"
+    )
+    ins = make_stock("MULTIMONEDA")
+    for cuenta in (acc, otra):
+        record_buy(account=cuenta, instrument=ins, quantity=D(1), price=D(100), executed_at=T0)
+    record_price(ins, D(110), "MANUAL", REPORT)
+    record_fx("USD", "MXN", D(18), "MANUAL", REPORT)
+    PositionSnapshot.objects.create(account=acc, file_sha256="f" * 64, as_of=REPORT, cash_amount=D(5))
+    d = client.get("/api/v1/portfolio/dashboard").json()
+    assert d["totals_by_currency"]["USD"]["cash_complete"] is False
+    assert d["fx"]["total_value_mxn"] is None
+
+
 def test_valor_es_titulos_del_libro_por_ultimo_precio(ctx):
     client, acc = ctx
     aaa, bbb = make_stock("AAA"), make_stock("BBB")

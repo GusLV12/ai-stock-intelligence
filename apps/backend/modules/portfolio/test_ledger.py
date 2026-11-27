@@ -96,3 +96,12 @@ def test_moneda_debe_coincidir_con_el_instrumento(account, stock):
             account=account, instrument=stock, quantity=D(1), price=D(10),
             currency="MXN", executed_at=T1,
         )  # fmt: skip
+
+
+def test_no_vende_antes_de_la_compra_ni_reescribe_fifo(account, stock):
+    record_buy(account=account, instrument=stock, quantity=D(1), price=D(10), executed_at=T2)
+    with pytest.raises(LedgerError, match="Saldo insuficiente"):
+        record_sell(account=account, instrument=stock, quantity=D(1), price=D(20), executed_at=T1)
+    record_sell(account=account, instrument=stock, quantity=D(1), price=D(20), executed_at=T3)
+    with pytest.raises(LedgerError, match="ventas posteriores"):
+        record_buy(account=account, instrument=stock, quantity=D(1), price=D(5), executed_at=T1)

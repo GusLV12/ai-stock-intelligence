@@ -26,9 +26,13 @@ def ctx(db):
     return client, acc
 
 
-def upload(client, acc, content=CSV):
+def upload(client, acc, content=CSV, resume=False):
     f = SimpleUploadedFile("mov.csv", content.encode(), content_type="text/csv")
-    return client.post("/api/v1/imports", {"account": acc.id, "file": f}, format="multipart")
+    return client.post(
+        "/api/v1/imports",
+        {"account": acc.id, "file": f, "resume_preview": str(resume).lower()},
+        format="multipart",
+    )
 
 
 def test_flujo_subir_confirmar_exportar(ctx):
@@ -56,6 +60,19 @@ def test_mismo_archivo_dos_veces_da_400(ctx):
     assert upload(client, acc).status_code == 201
     r = upload(client, acc)
     assert r.status_code == 400 and "ya fue cargado" in str(r.json())
+
+
+def test_recuperar_vista_previa_sin_crear_movimientos(ctx):
+    from modules.portfolio.models import Transaction
+
+    client, acc = ctx
+    first = upload(client, acc).json()
+    resumed = upload(client, acc, resume=True)
+    assert resumed.status_code == 201
+    assert resumed.json()["id"] == first["id"]
+    assert Transaction.objects.count() == 0
+    assert client.post(f"/api/v1/imports/{first['id']}/confirm").status_code == 200
+    assert upload(client, acc, resume=True).status_code == 400
 
 
 def test_confirmar_dos_veces_da_400(ctx):
@@ -87,3 +104,16 @@ def test_exportacion_csv_con_formato_explicito(ctx):
     client.post(f"/api/v1/imports/{upload(client, acc).json()['id']}/confirm")
     r = client.get(f"/api/v1/exports?account={acc.id}&format=csv")
     assert r.status_code == 200 and r["Content-Type"].startswith("text/csv")
+
+
+def test_dos_vistas_previas_no_crean_movimientos_duplicados(ctx):
+    client, acc = ctx
+    first = upload(client, acc, CSV).json()["id"]
+    second = upload(client, acc, CSV + "\n").json()["id"]
+    from modules.portfolio.models import Transaction
+
+    assert Transaction.objects.count() == 0
+    assert client.post(f"/api/v1/imports/{first}/confirm").json()["result"]["created"] == 2
+    result = client.post(f"/api/v1/imports/{second}/confirm").json()["result"]
+    assert result["created"] == 0 and result["skipped_duplicates"] == 2
+    assert Transaction.objects.count() == 2
