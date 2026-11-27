@@ -79,6 +79,7 @@ class AccountsView(APIView):
                     "initial_cash": a.initial_cash,
                     "equity": s["equity"],
                     "return_pct": s["return_pct"],
+                    "valuation_complete": s["valuation_complete"],
                     "created_at": a.created_at,
                 }
             )
@@ -133,15 +134,17 @@ class OrdersView(APIView):
     def post(self, request, pk):
         a = _mine(request, pk)
         data = request.data if isinstance(request.data, dict) else {}
-        ident = (
+        identifiers = list(
             InstrumentIdentifier.objects.filter(
                 kind="TICKER", value__iexact=str(data.get("ticker", "")).strip()
             )
             .select_related("instrument")
-            .first()
         )
-        if ident is None:
+        if not identifiers:
             raise serializers.ValidationError({"ticker": "Emisora no encontrada."})
+        if len({i.instrument_id for i in identifiers}) > 1:
+            raise serializers.ValidationError({"ticker": "La emisora es ambigua entre mercados; no se puede simular esta orden."})
+        ident = identifiers[0]
         try:
             o = svc.place_order(
                 a, ident.instrument, str(data.get("side", "")).upper(), _dec(data, "quantity"), str(data.get("order_type", "MARKET")).upper(),

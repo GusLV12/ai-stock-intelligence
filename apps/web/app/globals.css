@@ -537,3 +537,37 @@ caption.sr, .sr { position: absolute; width: 1px; height: 1px; overflow: hidden;
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Paper trading: diseño de práctica, sin relación con cuentas reales. */
+.paper-page { max-width: 1900px; }
+.paper-page h1 { font-size: clamp(1.8rem, 2.2vw, 2.35rem); }
+.paper-eyebrow { color: var(--accent-fg); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .09em; margin: 0 0 4px; }
+.paper-badge { color: var(--accent-fg); background: var(--accent-soft); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 7px 12px; font-size: var(--fs-xs); font-weight: 700; }
+.paper-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.paper-heading h2 { margin: 0; }
+.paper-accounts details { margin-top: 12px; }
+.paper-accounts summary, .paper-guide summary { cursor: pointer; color: var(--accent-fg); font-weight: 600; }
+.paper-accounts form { margin-top: 12px; }
+.paper-account, .paper-main, .paper-aside { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.paper-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.paper-stat { display: flex; flex-direction: column; gap: 4px; }
+.paper-stat span, .paper-stat small { color: var(--muted); font-size: var(--fs-xs); }
+.paper-stat strong { font-size: var(--fs-lg); overflow-wrap: anywhere; }
+.paper-workspace { display: grid; grid-template-columns: minmax(0, 2fr) minmax(275px, .8fr); gap: 14px; align-items: start; }
+.paper-workspace > * { min-width: 0; }
+.paper-chart .chartbox { margin-top: 14px; }
+.paper-ranges, .paper-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
+.paper-ranges button { padding: 6px 9px; }
+.paper-tabs { border-bottom: 1px solid var(--line); margin-bottom: 18px; padding-bottom: 10px; }
+.paper-tabs button { flex: 1; }
+.paper-empty { border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); color: var(--muted); padding: 50px 16px; text-align: center; }
+.paper-order-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 16px 0; }
+.paper-order-form .field:first-child, .paper-order-form .field:last-of-type, .paper-order-form button { grid-column: 1 / -1; }
+.paper-order-form .field { min-width: 0; }
+.paper-order-form input, .paper-order-form select { width: 100%; min-width: 0; }
+.paper-guide ul { padding-left: 20px; color: var(--muted); font-size: var(--fs-sm); }
+.paper-guide li { margin: 8px 0; }
+.paper-guide details { border-top: 1px solid var(--line); margin-top: 15px; padding-top: 12px; font-size: var(--fs-sm); }
+.paper-records .tablewrap, .paper-proposal .tablewrap { max-width: 100%; }
+@media (max-width: 1050px) { .paper-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .paper-workspace { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 520px) { .paper-page .card { padding: 14px; } .paper-stat strong { font-size: var(--fs-md); } .paper-tabs button { flex: 1 1 auto; } }

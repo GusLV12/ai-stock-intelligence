@@ -85,6 +85,28 @@ def test_orden_limitada_cancelar_y_procesar(ctx):
     assert c.post(f"{BASE}/accounts/{acc}/orders/{p['id']}/cancel").json()["status"] == "CANCELLED"
 
 
+def test_ticker_ambiguo_no_crea_orden(ctx):
+    c, _, _ = ctx
+    acc = new_account(c).json()["account"]["id"]
+    ins = Instrument.objects.create(asset_class="STOCK", name="Otra AAA", market="OTRO", currency="USD")
+    InstrumentIdentifier.objects.create(instrument=ins, kind="TICKER", value="AAA")
+    response = order(c, acc)
+    assert response.status_code == 400
+    assert "ambigua" in response.json()["ticker"]
+    assert not PaperOrder.objects.exists()
+
+
+def test_resumen_indica_valoracion_incompleta(ctx, monkeypatch):
+    c, _, _ = ctx
+    acc = new_account(c).json()["account"]["id"]
+    assert order(c, acc).json()["status"] == "FILLED"
+    monkeypatch.setattr("modules.paper.services.reference_price", lambda *_args: None)
+    response = c.get(f"{BASE}/accounts/{acc}").json()
+    assert response["valuation_complete"] is False
+    assert response["positions"][0]["price"] is None
+    assert c.get(f"{BASE}/accounts").json()["accounts"][0]["valuation_complete"] is False
+
+
 @pytest.mark.parametrize(
     "body",
     [

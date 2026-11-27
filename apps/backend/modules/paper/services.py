@@ -233,7 +233,7 @@ def summary(account: PaperAccount, now=None) -> dict:
         "account": {"id": account.id, "name": account.name, "currency": account.currency, "initial_cash": account.initial_cash, "config": account.config, "created_at": account.created_at},
         "cash": st.cash, "equity": total, "return_pct": (total / account.initial_cash - 1) * 100,
         "realized": st.realized, "unrealized": sum((p["unrealized"] or Decimal(0) for p in positions), Decimal(0)),
-        "fees": st.fees, "positions": positions, "pending_orders": account.orders.filter(status="PENDING").count(),
+        "fees": st.fees, "positions": positions, "valuation_complete": all(p["price"] is not None for p in positions), "pending_orders": account.orders.filter(status="PENDING").count(),
         "notice": "Cuenta virtual: no hay dinero real ni órdenes reales. Precios con retraso de proveedor gratuito; la ejecución es una simulación.",
     }  # fmt: skip
 
