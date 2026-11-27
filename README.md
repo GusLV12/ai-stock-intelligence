@@ -41,6 +41,11 @@ Banxico, y `SEC_CONTACT` para la ingesta de la SEC. Sin claves, los precios usan
 
 ### 1.2 Uso diario
 
+En Windows, desde la carpeta del proyecto, ejecuta `powershell -ExecutionPolicy Bypass -File .\iniciar.ps1`.
+El script compila la web, inicia ambos servicios en segundo plano y muestra la direccion, los registros temporales y el comando para detenerlos. Requiere que los puertos 8010 y 3010 esten libres y que la instalacion inicial este completa.
+
+Como alternativa, puedes iniciarlos manualmente:
+
 Abre **dos terminales** en PowerShell.
 
 **Terminal 1 — backend (puerto 8010):**
